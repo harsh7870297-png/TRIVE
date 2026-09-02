@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 export default function Survey({ username, onFinish }) {
   const [wouldUseAgain, setWouldUseAgain] = useState(true);
@@ -14,7 +15,7 @@ export default function Survey({ username, onFinish }) {
     setErrorMsg('');
 
     try {
-      const res = await fetch('http://localhost:5000/api/survey', {
+      const res = await fetch(`${API_BASE_URL}/api/survey`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

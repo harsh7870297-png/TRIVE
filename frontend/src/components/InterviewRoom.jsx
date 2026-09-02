@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SpriteDisplay from './SpriteDisplay';
+import { API_BASE_URL } from '../config/api';
 
 export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetup }) {
   // Timer state: 300 seconds (5 minutes)
@@ -401,7 +402,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     setConversationHistory(updatedHistory);
 
     try {
-      const res = await fetch('http://localhost:5000/api/interview/turn', {
+      const res = await fetch(`${API_BASE_URL}/api/interview/turn`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -459,7 +460,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     setIsTimerRunning(false);
 
     try {
-      await fetch('http://localhost:5000/api/interview/stop', {
+      await fetch(`${API_BASE_URL}/api/interview/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -478,7 +479,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     if (window.speechSynthesis) window.speechSynthesis.cancel();
 
     try {
-      const res = await fetch('http://localhost:5000/api/interview/evaluate', {
+      const res = await fetch(`${API_BASE_URL}/api/interview/evaluate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

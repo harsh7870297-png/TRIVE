@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 export default function InterviewDetails({ onStartInterview }) {
   const [username, setUsername] = useState('');
@@ -19,7 +20,7 @@ export default function InterviewDetails({ onStartInterview }) {
   // Log site visit on mount for traffic.xlsx (10-minute intervals)
   useEffect(() => {
     try {
-      fetch('http://localhost:5000/api/analytics/event', {
+      fetch(`${API_BASE_URL}/api/analytics/event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -51,7 +52,7 @@ export default function InterviewDetails({ onStartInterview }) {
     setKeyVerifying(true);
 
     try {
-      const res = await fetch('http://localhost:5000/api/interview/verify-key', {
+      const res = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -103,7 +104,7 @@ export default function InterviewDetails({ onStartInterview }) {
     setLoading(true);
 
     try {
-      const userRes = await fetch('http://localhost:5000/api/users/check-username', {
+      const userRes = await fetch(`${API_BASE_URL}/api/users/check-username`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username: username.trim() })
@@ -116,7 +117,7 @@ export default function InterviewDetails({ onStartInterview }) {
       }
 
       if (!isKeyVerified) {
-        const keyRes = await fetch('http://localhost:5000/api/interview/verify-key', {
+        const keyRes = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -132,7 +133,7 @@ export default function InterviewDetails({ onStartInterview }) {
         }
       }
 
-      const startRes = await fetch('http://localhost:5000/api/interview/start', {
+      const startRes = await fetch(`${API_BASE_URL}/api/interview/start`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

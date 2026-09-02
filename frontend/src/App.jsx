@@ -3,6 +3,7 @@ import InterviewDetails from './components/InterviewDetails';
 import InterviewRoom from './components/InterviewRoom';
 import Survey from './components/Survey';
 import Completion from './components/Completion';
+import { API_BASE_URL } from './config/api';
 
 export default function App() {
   // State machine: "setup" | "room" | "survey" | "completed"
@@ -12,7 +13,7 @@ export default function App() {
   // Log site visit analytics event on load
   useEffect(() => {
     try {
-      fetch('http://localhost:5000/api/analytics/event', {
+      fetch(`${API_BASE_URL}/api/analytics/event`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
