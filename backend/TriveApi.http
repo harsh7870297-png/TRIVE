@@ -1,0 +1,6 @@
+@TriveApi_HostAddress = http://localhost:5245
+
+GET {{TriveApi_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
