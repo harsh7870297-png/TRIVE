@@ -72,7 +72,7 @@ namespace TriveApi.Controllers
                             var cleanName = name.StartsWith("models/") ? name.Substring(7) : name;
                             var displayName = m.TryGetProperty("displayName", out var dn) ? dn.GetString() : cleanName;
 
-                            if (cleanName.StartsWith("gemini-3.") && cleanName.Contains("flash"))
+                            if (cleanName.StartsWith("gemini-") && (cleanName.Contains("flash") || cleanName.Contains("pro")))
                             {
                                 modelList.Add(new
                                 {

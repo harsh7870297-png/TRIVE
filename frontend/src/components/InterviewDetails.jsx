@@ -10,8 +10,7 @@ export default function InterviewDetails({ onStartInterview }) {
   const [difficulty, setDifficulty] = useState(3); // Default level 3 (Standard)
   const [apiKey, setApiKey] = useState('');
   
-  // Gemini 3.1 Flash as Recommended Default
-  const [selectedModel, setSelectedModel] = useState('gemini-3.1-flash-lite');
+  const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
 
   // Pre-configured interview settings (Speaker OFF by default)
   const [inputMode, setInputMode] = useState('keyboard'); // 'keyboard' | 'mic'
@@ -31,11 +30,11 @@ export default function InterviewDetails({ onStartInterview }) {
     } catch (e) {}
   }, []);
 
-  // Gemini 3.5 & 3.1 Flash models ONLY
   const [availableModels] = useState([
-    { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash (Recommended Default)' },
-    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
-    { id: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash-Lite' }
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommended)' },
+    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite' },
+    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' }
   ]);
 
   const [isKeyVerified, setIsKeyVerified] = useState(false);
