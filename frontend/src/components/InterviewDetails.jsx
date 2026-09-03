@@ -17,7 +17,18 @@ export default function InterviewDetails({ onStartInterview }) {
   const [inputMode, setInputMode] = useState('keyboard'); // 'keyboard' | 'mic'
   const [speakerEnabled, setSpeakerEnabled] = useState(false); // Default OFF as requested
 
-  // Log site visit on mount
+  const [stats, setStats] = useState({
+    siteVisits: 0,
+    startedCount: 0,
+    finishedCount: 0,
+    avgQuitSeconds: 0,
+    totalSurveys: 0,
+    wouldUseAgainCount: 0,
+    wouldReferCount: 0,
+    avgPrice: 0
+  });
+
+  // Log site visit and fetch live platform statistics
   useEffect(() => {
     try {
       fetch(`${API_BASE_URL}/api/analytics/event`, {
@@ -29,6 +40,14 @@ export default function InterviewDetails({ onStartInterview }) {
         })
       });
     } catch (e) {}
+
+    // Fetch live statistics
+    fetch(`${API_BASE_URL}/api/analytics/stats`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data) setStats(data);
+      })
+      .catch(() => {});
 
     // Firebase Firestore + Google Analytics 4
     logAnalyticsEvent('page_view', { page_title: 'InterviewDetails' });
@@ -157,24 +176,24 @@ export default function InterviewDetails({ onStartInterview }) {
 
       const startData = await startRes.json();
       if (!startRes.ok) {
-        setErrorMsg(startData.message || 'Failed to initialize interview.');
+        setErrorMsg(startData.message || 'Failed to initialize interview session.');
         setLoading(false);
         return;
       }
 
       onStartInterview({
+        interviewId: startData.interviewId,
         username: username.trim(),
         company: company.trim(),
         jobRole: jobRole.trim(),
         jobDescription: jobDescription.trim(),
         salary: salary.trim(),
         difficulty: difficulty,
-        inputMode: inputMode,
-        speakerEnabled: speakerEnabled,
         apiKey: apiKey.trim(),
         model: selectedModel,
-        interviewId: startData.interviewId,
-        initialTurn: startData.turn
+        inputMode: inputMode,
+        speakerEnabled: speakerEnabled,
+        initialTurn: startData.initialTurn
       });
 
     } catch (err) {
@@ -184,31 +203,34 @@ export default function InterviewDetails({ onStartInterview }) {
     }
   };
 
+  const quitMins = Math.floor((stats.avgQuitSeconds || 0) / 60);
+  const quitSecs = (stats.avgQuitSeconds || 0) % 60;
+
   return (
-    <div className="min-h-screen bg-[#ffffff] font-sans p-4 md:p-8 flex flex-col items-center justify-center">
-      <div className="w-full max-w-5xl space-y-5">
+    <div className="min-h-screen bg-[#ffffff] font-sans p-3 md:p-6 flex flex-col justify-between items-center select-none">
+      <div className="w-full max-w-7xl space-y-4 my-auto">
 
         {/* Top Header Banner */}
-        <div className="bg-[#8b5cf6] text-white font-extrabold text-xl md:text-3xl text-center py-3.5 tracking-wider uppercase border-2 border-black">
+        <div className="bg-[#8b5cf6] text-white font-extrabold text-2xl md:text-4xl text-center py-4 tracking-wider uppercase border-3 border-black">
           TRIVE
-          <div className="text-base md:text-xl font-bold mt-0.5 text-[#ffcc00]">INTERVIEW PREPARATION AI</div>
+          <div className="text-lg md:text-2xl font-bold mt-0.5 text-[#ffcc00]">INTERVIEW PREPARATION AI</div>
         </div>
 
         {errorMsg && (
-          <div className="bg-[#ffcc00] text-black font-bold p-3 text-center border-2 border-black font-mono text-xs md:text-sm leading-relaxed overflow-hidden">
+          <div className="bg-[#ffcc00] text-black font-bold p-3 text-center border-3 border-black font-mono text-sm md:text-base leading-relaxed overflow-hidden">
             {errorMsg}
           </div>
         )}
 
         {/* Main Grid: Left Panel & Right Panel */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
 
           {/* Left Panel (Light Blue) */}
-          <div className="bg-[#93c5fd] p-4 border-2 border-black space-y-3.5">
+          <div className="bg-[#93c5fd] p-5 border-3 border-black space-y-4 flex flex-col justify-between">
             
             {/* Username */}
             <div>
-              <div className="bg-[#000000] text-white font-mono font-bold text-xs md:text-sm px-3 py-1 uppercase">
+              <div className="bg-[#000000] text-white font-mono font-bold text-sm md:text-base px-3 py-1.5 uppercase">
                 USERNAME (50 CHARACTERS MAX)
               </div>
               <input
@@ -217,13 +239,13 @@ export default function InterviewDetails({ onStartInterview }) {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="Enter unique username"
-                className="w-full bg-[#ffffff] border-2 border-black p-2 font-mono font-bold text-black focus:outline-none mt-1 text-sm"
+                className="w-full bg-[#ffffff] border-3 border-black p-3 font-mono font-bold text-black focus:outline-none mt-1 text-base md:text-lg"
               />
             </div>
 
             {/* Company Name */}
             <div>
-              <div className="bg-[#000000] text-white font-mono font-bold text-xs md:text-sm px-3 py-1 uppercase">
+              <div className="bg-[#000000] text-white font-mono font-bold text-sm md:text-base px-3 py-1.5 uppercase">
                 COMPANY NAME (50 CHARACTERS MAX)
               </div>
               <input
@@ -232,13 +254,13 @@ export default function InterviewDetails({ onStartInterview }) {
                 value={company}
                 onChange={(e) => setCompany(e.target.value)}
                 placeholder="e.g. Accenture"
-                className="w-full bg-[#ffffff] border-2 border-black p-2 font-mono font-bold text-black focus:outline-none mt-1 text-sm"
+                className="w-full bg-[#ffffff] border-3 border-black p-3 font-mono font-bold text-black focus:outline-none mt-1 text-base md:text-lg"
               />
             </div>
 
             {/* Job Profile */}
             <div>
-              <div className="bg-[#000000] text-white font-mono font-bold text-xs md:text-sm px-3 py-1 uppercase">
+              <div className="bg-[#000000] text-white font-mono font-bold text-sm md:text-base px-3 py-1.5 uppercase">
                 JOB PROFILE (MAX 50 CHARACTERS)
               </div>
               <input
@@ -247,13 +269,13 @@ export default function InterviewDetails({ onStartInterview }) {
                 value={jobRole}
                 onChange={(e) => setJobRole(e.target.value)}
                 placeholder="e.g. Software Engineer Intern"
-                className="w-full bg-[#ffffff] border-2 border-black p-2 font-mono font-bold text-black focus:outline-none mt-1 text-sm"
+                className="w-full bg-[#ffffff] border-3 border-black p-3 font-mono font-bold text-black focus:outline-none mt-1 text-base md:text-lg"
               />
             </div>
 
             {/* Salary */}
             <div>
-              <div className="bg-[#000000] text-white font-mono font-bold text-xs md:text-sm px-3 py-1 uppercase">
+              <div className="bg-[#000000] text-white font-mono font-bold text-sm md:text-base px-3 py-1.5 uppercase">
                 SALARY (₹)
               </div>
               <input
@@ -261,30 +283,30 @@ export default function InterviewDetails({ onStartInterview }) {
                 value={salary}
                 onChange={(e) => setSalary(e.target.value)}
                 placeholder="e.g. ₹8,00,000 / year"
-                className="w-full bg-[#ffffff] border-2 border-black p-2 font-mono font-bold text-black focus:outline-none mt-1 text-sm"
+                className="w-full bg-[#ffffff] border-3 border-black p-3 font-mono font-bold text-black focus:outline-none mt-1 text-base md:text-lg"
               />
             </div>
 
           </div>
 
           {/* Right Panel (Light Green): Difficulty Level + Job Description */}
-          <div className="bg-[#86efac] p-4 border-2 border-black flex flex-col space-y-3.5">
+          <div className="bg-[#86efac] p-5 border-3 border-black flex flex-col space-y-4">
             
             {/* Difficulty Level 1 to 5 */}
             <div>
-              <div className="bg-[#000000] text-white font-mono font-bold text-xs md:text-sm px-3 py-1 uppercase flex justify-between">
+              <div className="bg-[#000000] text-white font-mono font-bold text-sm md:text-base px-3 py-1.5 uppercase flex justify-between">
                 <span>DIFFICULTY LEVEL (1 TO 5)</span>
-                <span className="text-[#ffcc00] font-mono text-xs">
+                <span className="text-[#ffcc00] font-mono text-sm md:text-base">
                   {difficulty === 1 ? '1 - EASIEST' : difficulty === 5 ? '5 - HARDEST' : `${difficulty} - MODERATE`}
                 </span>
               </div>
-              <div className="grid grid-cols-5 gap-2 mt-1 font-mono">
+              <div className="grid grid-cols-5 gap-2.5 mt-1.5 font-mono">
                 {[1, 2, 3, 4, 5].map((lvl) => (
                   <button
                     key={lvl}
                     type="button"
                     onClick={() => setDifficulty(lvl)}
-                    className={`py-1.5 font-extrabold text-xs md:text-sm border-2 border-black uppercase cursor-pointer transition-all ${
+                    className={`py-3 font-extrabold text-sm md:text-base border-3 border-black uppercase cursor-pointer transition-all ${
                       difficulty === lvl ? 'bg-[#ffcc00] text-black' : 'bg-white text-black hover:bg-gray-100'
                     }`}
                   >
@@ -295,17 +317,17 @@ export default function InterviewDetails({ onStartInterview }) {
             </div>
 
             {/* Job Description */}
-            <div className="flex-1 flex flex-col">
-              <div className="bg-[#000000] text-white font-mono font-bold text-xs md:text-sm px-3 py-1 uppercase">
+            <div className="flex-1 flex flex-col min-h-[220px]">
+              <div className="bg-[#000000] text-white font-mono font-bold text-sm md:text-base px-3 py-1.5 uppercase">
                 JOB DESCRIPTION (3000 CHARACTERS MAX)
               </div>
               <textarea
                 maxLength={3000}
-                rows={6}
+                rows={8}
                 value={jobDescription}
                 onChange={(e) => setJobDescription(e.target.value)}
                 placeholder="Paste job description context here..."
-                className="w-full flex-1 bg-[#ffffff] border-2 border-black p-2.5 font-mono font-bold text-black focus:outline-none mt-1 resize-none text-xs md:text-sm"
+                className="w-full flex-1 bg-[#ffffff] border-3 border-black p-3 font-mono font-bold text-black focus:outline-none mt-1 resize-none text-sm md:text-base"
               />
             </div>
 
@@ -314,12 +336,11 @@ export default function InterviewDetails({ onStartInterview }) {
         </div>
 
         {/* Bottom Configuration Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-stretch">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
           
-          {/* Gemini Box with 3.1 Flash as Default (6 Columns) */}
-          <div className="md:col-span-6 bg-[#000000] p-3 border-2 border-black space-y-2 font-mono">
+          {/* Gemini Box (6 Columns) */}
+          <div className="lg:col-span-6 bg-[#000000] p-4 border-3 border-black space-y-3 font-mono">
             
-            {/* Model Dropdown */}
             <div>
               <select
                 value={selectedModel}
@@ -327,7 +348,7 @@ export default function InterviewDetails({ onStartInterview }) {
                   setSelectedModel(e.target.value);
                   setIsKeyVerified(false);
                 }}
-                className="w-full bg-[#ffcc00] border-2 border-black p-2 font-mono font-extrabold text-black focus:outline-none uppercase cursor-pointer text-xs md:text-sm"
+                className="w-full bg-[#ffcc00] border-3 border-black p-3 font-mono font-extrabold text-black focus:outline-none uppercase cursor-pointer text-sm md:text-base"
               >
                 {availableModels.map((m) => (
                   <option key={m.id} value={m.id} className="bg-white text-black font-mono">
@@ -339,7 +360,7 @@ export default function InterviewDetails({ onStartInterview }) {
 
             {/* API Key Input */}
             <div className="space-y-1">
-              <div className="text-[#ffcc00] font-mono text-[10px] font-bold uppercase">
+              <div className="text-[#ffcc00] font-mono text-xs font-bold uppercase">
                 (RECOMMENDED: NEW KEY AT AISTUDIO.GOOGLE.COM)
               </div>
               <div className="relative">
@@ -351,10 +372,10 @@ export default function InterviewDetails({ onStartInterview }) {
                     setIsKeyVerified(false);
                   }}
                   placeholder="YOUR API KEY (GEMINI)"
-                  className="w-full bg-[#ffcc00] border-2 border-black p-2 font-mono font-extrabold text-black placeholder-black/70 focus:outline-none text-xs md:text-sm"
+                  className="w-full bg-[#ffcc00] border-3 border-black p-3 font-mono font-extrabold text-black placeholder-black/70 focus:outline-none text-sm md:text-base"
                 />
                 {isKeyVerified && (
-                  <span className="absolute right-2 top-2 text-black font-extrabold text-xs bg-[#86efac] px-1.5 py-0.5 border border-black">
+                  <span className="absolute right-2 top-2.5 text-black font-extrabold text-xs bg-[#86efac] px-2 py-1 border-2 border-black">
                     ✓ VERIFIED
                   </span>
                 )}
@@ -365,25 +386,25 @@ export default function InterviewDetails({ onStartInterview }) {
               type="button"
               onClick={handleVerifyKey}
               disabled={keyVerifying}
-              className="w-full bg-[#86efac] hover:bg-[#4ade80] text-black font-extrabold text-sm py-1.5 uppercase border-2 border-black cursor-pointer transition-all"
+              className="w-full bg-[#86efac] hover:bg-[#4ade80] text-black font-extrabold text-base py-2.5 uppercase border-3 border-black cursor-pointer transition-all"
             >
               {keyVerifying ? 'VERIFYING...' : 'VERIFY KEY'}
             </button>
           </div>
 
-          {/* Mode Toggles Box (Speaker OFF by Default) (3 Columns) */}
-          <div className="md:col-span-3 bg-[#000000] p-3 border-2 border-black flex flex-col justify-between space-y-2 font-mono">
-            <div className="text-white font-bold text-[10px] uppercase border-b border-gray-700 pb-1">
+          {/* Mode Toggles Box (3 Columns) */}
+          <div className="lg:col-span-3 bg-[#000000] p-4 border-3 border-black flex flex-col justify-between space-y-3 font-mono">
+            <div className="text-white font-bold text-xs uppercase border-b border-gray-700 pb-1">
               SESSION PRESETS
             </div>
 
             {/* Input Mode Toggle */}
             <div>
-              <div className="text-[#ffcc00] text-[10px] font-bold uppercase mb-1">CANDIDATE INPUT:</div>
+              <div className="text-[#ffcc00] text-xs font-bold uppercase mb-1">CANDIDATE INPUT:</div>
               <button
                 type="button"
                 onClick={() => setInputMode((prev) => (prev === 'keyboard' ? 'mic' : 'keyboard'))}
-                className={`w-full py-2 font-extrabold text-xs border-2 border-black uppercase cursor-pointer transition-all ${
+                className={`w-full py-3 font-extrabold text-sm border-3 border-black uppercase cursor-pointer transition-all ${
                   inputMode === 'mic' ? 'bg-red-500 text-white animate-pulse' : 'bg-[#93c5fd] hover:bg-[#60a5fa] text-black'
                 }`}
               >
@@ -391,13 +412,13 @@ export default function InterviewDetails({ onStartInterview }) {
               </button>
             </div>
 
-            {/* Speaker Voice Output Toggle (Default OFF) */}
+            {/* Speaker Voice Output Toggle */}
             <div>
-              <div className="text-[#ffcc00] text-[10px] font-bold uppercase mb-1">INTERVIEWER VOICE:</div>
+              <div className="text-[#ffcc00] text-xs font-bold uppercase mb-1">INTERVIEWER VOICE:</div>
               <button
                 type="button"
                 onClick={() => setSpeakerEnabled((prev) => !prev)}
-                className={`w-full py-2 font-extrabold text-xs border-2 border-black uppercase cursor-pointer transition-all ${
+                className={`w-full py-3 font-extrabold text-sm border-3 border-black uppercase cursor-pointer transition-all ${
                   speakerEnabled ? 'bg-[#86efac] hover:bg-[#4ade80] text-black' : 'bg-gray-700 text-gray-300'
                 }`}
               >
@@ -411,11 +432,77 @@ export default function InterviewDetails({ onStartInterview }) {
             type="button"
             onClick={handleNext}
             disabled={loading}
-            className="md:col-span-3 bg-[#8b5cf6] hover:bg-[#7c3aed] text-[#ffcc00] font-extrabold text-xl md:text-2xl py-4 md:py-0 border-2 border-black uppercase cursor-pointer transition-all flex items-center justify-center"
+            className="lg:col-span-3 bg-[#8b5cf6] hover:bg-[#7c3aed] text-[#ffcc00] font-extrabold text-2xl md:text-3xl py-6 lg:py-0 border-3 border-black uppercase cursor-pointer transition-all flex items-center justify-center"
           >
             {loading ? 'STARTING...' : 'NEXT'}
           </button>
 
+        </div>
+
+        {/* LIVE PLATFORM & COMMUNITY STATISTICS BANNER (PUBLIC) */}
+        <div className="bg-[#000000] p-4 border-3 border-black space-y-3 font-mono mt-4">
+          <div className="flex flex-col md:flex-row justify-between items-center border-b border-gray-800 pb-2 gap-2">
+            <div className="text-[#ffcc00] font-extrabold text-sm md:text-base uppercase tracking-wider">
+              📊 LIVE COMMUNITY & USAGE STATISTICS
+            </div>
+            <div className="text-gray-400 text-xs font-bold">
+              REAL-TIME PLATFORM METRICS
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+
+            {/* Site Visits */}
+            <div className="bg-[#1e1e1e] p-3 border-2 border-gray-700 text-center">
+              <div className="text-gray-400 text-[10px] uppercase font-bold">SITE VISITS</div>
+              <div className="text-[#93c5fd] font-extrabold text-xl md:text-2xl mt-1">{stats.siteVisits || 0}</div>
+            </div>
+
+            {/* Started */}
+            <div className="bg-[#1e1e1e] p-3 border-2 border-gray-700 text-center">
+              <div className="text-gray-400 text-[10px] uppercase font-bold">STARTED</div>
+              <div className="text-[#ffcc00] font-extrabold text-xl md:text-2xl mt-1">{stats.startedCount || 0}</div>
+            </div>
+
+            {/* Finished */}
+            <div className="bg-[#1e1e1e] p-3 border-2 border-gray-700 text-center">
+              <div className="text-gray-400 text-[10px] uppercase font-bold">FINISHED</div>
+              <div className="text-[#86efac] font-extrabold text-xl md:text-2xl mt-1">{stats.finishedCount || 0}</div>
+            </div>
+
+            {/* Avg Quit Time */}
+            <div className="bg-[#1e1e1e] p-3 border-2 border-gray-700 text-center">
+              <div className="text-gray-400 text-[10px] uppercase font-bold">AVG QUIT TIME</div>
+              <div className="text-red-400 font-extrabold text-lg md:text-xl mt-1">
+                {quitMins}m {quitSecs}s
+              </div>
+            </div>
+
+            {/* Would Use Again */}
+            <div className="bg-[#1e1e1e] p-3 border-2 border-gray-700 text-center">
+              <div className="text-gray-400 text-[10px] uppercase font-bold">USE AGAIN</div>
+              <div className="text-[#93c5fd] font-extrabold text-xl md:text-2xl mt-1">
+                {stats.totalSurveys > 0 ? Math.round((stats.wouldUseAgainCount / stats.totalSurveys) * 100) : 100}%
+              </div>
+            </div>
+
+            {/* Avg Willing Price */}
+            <div className="bg-[#1e1e1e] p-3 border-2 border-gray-700 text-center">
+              <div className="text-gray-400 text-[10px] uppercase font-bold">AVG PRICE</div>
+              <div className="text-[#ffcc00] font-extrabold text-xl md:text-2xl mt-1">
+                ₹{stats.avgPrice || 75}
+              </div>
+            </div>
+
+            {/* Would Refer */}
+            <div className="bg-[#1e1e1e] p-3 border-2 border-gray-700 text-center col-span-2 md:col-span-1">
+              <div className="text-gray-400 text-[10px] uppercase font-bold">WOULD REFER</div>
+              <div className="text-[#86efac] font-extrabold text-xl md:text-2xl mt-1">
+                {stats.totalSurveys > 0 ? Math.round((stats.wouldReferCount / stats.totalSurveys) * 100) : 100}%
+              </div>
+            </div>
+
+          </div>
         </div>
 
       </div>
