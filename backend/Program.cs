@@ -38,21 +38,30 @@ if (usePostgres && !string.IsNullOrEmpty(pgConnStr))
 else
 {
     // High-performance SQLite database
-    var sqliteConnStr = builder.Configuration.GetConnectionString("SQLite") ?? "Data Source=trive.db";
+    var baseDir = AppDomain.CurrentDomain.BaseDirectory;
+    var dbPath = System.IO.Path.Combine(baseDir, "trive.db");
+    var sqliteConnStr = builder.Configuration.GetConnectionString("SQLite") ?? $"Data Source={dbPath}";
     builder.Services.AddDbContext<AppDbContext>(options =>
         options.UseSqlite(sqliteConnStr));
 }
 
 var app = builder.Build();
 
-// Ensure Database schema and Excel files are created on startup
-using (var scope = app.Services.CreateScope())
+// Ensure Database schema and Excel files are created on startup safely
+try
 {
-    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Database.EnsureCreated();
 
-    // Instantiate ExcelExportService to create traffic.xlsx and data.xlsx immediately
-    scope.ServiceProvider.GetRequiredService<ExcelExportService>();
+        // Instantiate ExcelExportService to create traffic.xlsx and data.xlsx immediately
+        scope.ServiceProvider.GetRequiredService<ExcelExportService>();
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"[Startup] Non-critical initialization error: {ex.Message}");
 }
 
 app.UseCors("AllowAll");

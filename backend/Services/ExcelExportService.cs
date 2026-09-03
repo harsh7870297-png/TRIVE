@@ -17,8 +17,8 @@ namespace TriveApi.Services
         {
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
 
-            // Store directly in project root folder (e:\TRIVE\backend\)
-            var projectDir = Directory.GetCurrentDirectory();
+            // Store directly in application directory
+            var projectDir = AppDomain.CurrentDomain.BaseDirectory;
             _trafficFilePath = Path.Combine(projectDir, "traffic.xlsx");
             _dataFilePath = Path.Combine(projectDir, "data.xlsx");
 
