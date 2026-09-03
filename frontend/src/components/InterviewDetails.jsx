@@ -123,7 +123,9 @@ export default function InterviewDetails({ onStartInterview }) {
     setLoading(true);
 
     try {
+      // 1. Verify key directly if not already marked valid
       if (!isKeyVerified) {
+        let keyValid = false;
         try {
           const keyRes = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
             method: 'POST',
@@ -135,20 +137,24 @@ export default function InterviewDetails({ onStartInterview }) {
           });
           if (keyRes.ok) {
             const keyData = await keyRes.json();
-            if (keyData.valid) setIsKeyVerified(true);
+            if (keyData.valid) keyValid = true;
           }
-        } catch (e) {
+        } catch (e) {}
+
+        if (!keyValid) {
           const directKey = await verifyKeyDirectly(apiKey.trim(), selectedModel);
           if (directKey.valid) {
-            setIsKeyVerified(true);
+            keyValid = true;
           } else {
-            setErrorMsg(directKey.message);
+            setErrorMsg(directKey.message || "Invalid Gemini API key or connection error.");
             setLoading(false);
             return;
           }
         }
+        setIsKeyVerified(true);
       }
 
+      // 2. Start Interview Session
       let startData = null;
       try {
         const startRes = await fetch(`${API_BASE_URL}/api/interview/start`, {
@@ -174,7 +180,7 @@ export default function InterviewDetails({ onStartInterview }) {
         }
       } catch (err) {}
 
-      if (!startData) {
+      if (!startData || !startData.dialogue) {
         try {
           startData = await startInterviewDirectly({
             apiKey: apiKey.trim(),
@@ -196,7 +202,7 @@ export default function InterviewDetails({ onStartInterview }) {
       saveAnalyticsEventToFirestore('interview_started', { company: finalCompany, jobRole: finalJobRole });
 
       onStartInterview({
-        interviewId: startData.interviewId,
+        interviewId: startData.interviewId || `session-${Date.now()}`,
         username: finalUsername,
         company: finalCompany,
         jobRole: finalJobRole,
@@ -207,7 +213,7 @@ export default function InterviewDetails({ onStartInterview }) {
         model: selectedModel,
         inputMode: inputMode,
         speakerEnabled: speakerEnabled,
-        initialTurn: startData.initialTurn
+        initialTurn: startData.initialTurn || startData
       });
 
     } catch (err) {
