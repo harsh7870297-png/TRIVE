@@ -16,7 +16,7 @@ export default function InterviewDetails({ onStartInterview }) {
   const [inputMode, setInputMode] = useState('keyboard'); // 'keyboard' | 'mic'
   const [speakerEnabled, setSpeakerEnabled] = useState(false); // Default OFF as requested
 
-  // Log site visit on mount for traffic.xlsx (10-minute intervals)
+  // Log site visit on mount
   useEffect(() => {
     try {
       fetch(`${API_BASE_URL}/api/analytics/event`, {

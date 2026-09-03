@@ -15,14 +15,10 @@ namespace TriveApi.Controllers
     public class SurveyController : ControllerBase
     {
         private readonly AppDbContext _db;
-        private readonly ExcelExportService _excelService;
-        private readonly GoogleSheetsWebhookService _sheetsService;
 
-        public SurveyController(AppDbContext db, ExcelExportService excelService, GoogleSheetsWebhookService sheetsService)
+        public SurveyController(AppDbContext db)
         {
             _db = db;
-            _excelService = excelService;
-            _sheetsService = sheetsService;
         }
 
         public class SurveySubmitRequest
@@ -58,63 +54,6 @@ namespace TriveApi.Controllers
             });
 
             await _db.SaveChangesAsync();
-
-            // Fetch candidate interview session details for data.xlsx & Google Sheets
-            var interview = await _db.UserInterviews
-                .Where(u => u.Username.ToLower() == cleanUsername.ToLower())
-                .OrderByDescending(u => u.CreatedAt)
-                .FirstOrDefaultAsync();
-
-            string company = interview?.Company ?? "N/A";
-            string jobRole = interview?.JobRole ?? "N/A";
-            string salary = string.IsNullOrWhiteSpace(interview?.Salary) ? "N/A" : interview.Salary;
-            
-            string hrResults = FormatResultSummary(interview?.HrResultJson);
-            string techResults = FormatResultSummary(interview?.TechnicalResultJson);
-            string hmResults = FormatResultSummary(interview?.HiringManagerResultJson);
-
-            DateTime startTime = interview?.CreatedAt ?? DateTime.Now;
-            int exitSecs = interview?.ExitTimeSeconds ?? 0;
-            DateTime endTime = startTime.AddSeconds(exitSecs);
-
-            bool isCompleted = (interview?.InterviewStatus?.ToLower() == "completed");
-            string willingToPayPrice = req.WillingToPay 
-                ? $"Yes ({req.PriceRange ?? "Tier Not Selected"})" 
-                : "No";
-
-            // 1. Record local master 13-column record into data.xlsx
-            await _excelService.RecordUserDataAsync(
-                cleanUsername,
-                company,
-                jobRole,
-                salary,
-                hrResults,
-                techResults,
-                hmResults,
-                startTime,
-                endTime,
-                isCompleted,
-                req.WouldUseAgain,
-                willingToPayPrice,
-                req.WouldRefer
-            );
-
-            // 2. Post real-time 13-column record to Google Sheets Webhook link
-            await _sheetsService.SendUserDataAsync(
-                cleanUsername,
-                company,
-                jobRole,
-                salary,
-                hrResults,
-                techResults,
-                hmResults,
-                startTime,
-                endTime,
-                isCompleted,
-                req.WouldUseAgain,
-                willingToPayPrice,
-                req.WouldRefer
-            );
 
             return Ok(new { success = true });
         }

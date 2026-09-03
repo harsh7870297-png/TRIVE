@@ -12,8 +12,6 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Services
 builder.Services.AddControllers();
 builder.Services.AddHttpClient<GeminiService>();
-builder.Services.AddHttpClient<GoogleSheetsWebhookService>();
-builder.Services.AddSingleton<ExcelExportService>();
 
 // CORS Policy
 builder.Services.AddCors(options =>
@@ -47,16 +45,13 @@ else
 
 var app = builder.Build();
 
-// Ensure Database schema and Excel files are created on startup safely
+// Ensure Database schema is created on startup safely
 try
 {
     using (var scope = app.Services.CreateScope())
     {
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         db.Database.EnsureCreated();
-
-        // Instantiate ExcelExportService to create traffic.xlsx and data.xlsx immediately
-        scope.ServiceProvider.GetRequiredService<ExcelExportService>();
     }
 }
 catch (Exception ex)
