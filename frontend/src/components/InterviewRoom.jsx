@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import SpriteDisplay from './SpriteDisplay';
 import { API_BASE_URL } from '../config/api';
 import { generateTurnDirectly, generateEvaluationsDirectly } from '../services/directGeminiService';
+import { recordStatEvent } from '../services/statsService';
 
 export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetup }) {
   // Timer state: 300 seconds (5 minutes)
@@ -644,6 +645,8 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     setIsTimerRunning(false);
     setMode('evaluating');
     if (window.speechSynthesis) window.speechSynthesis.cancel();
+
+    recordStatEvent('INTERVIEW_FINISHED', { username: config.username, company: config.company });
 
     let evals = null;
     try {

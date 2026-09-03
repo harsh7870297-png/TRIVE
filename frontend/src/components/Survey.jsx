@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { API_BASE_URL } from '../config/api';
 import { logAnalyticsEvent, saveSurveyToFirestore } from '../config/firebase';
+import { recordStatEvent } from '../services/statsService';
 
 export default function Survey({ username, onFinish }) {
   const [wouldUseAgain, setWouldUseAgain] = useState(true);
@@ -23,9 +24,10 @@ export default function Survey({ username, onFinish }) {
       wouldRefer
     };
 
-    // Save directly to Firebase Firestore & GA4
+    // Save directly to Firebase Firestore & GA4 & Local Live Stats
     await saveSurveyToFirestore(surveyPayload);
     logAnalyticsEvent('survey_submitted', surveyPayload);
+    await recordStatEvent('SURVEY_SUBMITTED', surveyPayload);
 
     try {
       await fetch(`${API_BASE_URL}/api/survey`, {

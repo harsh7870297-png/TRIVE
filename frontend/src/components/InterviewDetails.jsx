@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config/api';
 import { logAnalyticsEvent, saveAnalyticsEventToFirestore } from '../config/firebase';
 import { verifyKeyDirectly, startInterviewDirectly } from '../services/directGeminiService';
+import { fetchLiveStats, recordStatEvent } from '../services/statsService';
 
 export default function InterviewDetails({ onStartInterview }) {
   const [defaultUsername] = useState(() => `user${Math.floor(1000 + Math.random() * 9000)}`);
@@ -29,7 +30,6 @@ export default function InterviewDetails({ onStartInterview }) {
     siteVisits: 0,
     startedCount: 0,
     finishedCount: 0,
-    avgQuitSeconds: 0,
     totalSurveys: 0,
     wouldUseAgainCount: 0,
     wouldReferCount: 0,
@@ -44,18 +44,9 @@ export default function InterviewDetails({ onStartInterview }) {
   useEffect(() => {
     logAnalyticsEvent('page_view', { page: 'setup' });
     saveAnalyticsEventToFirestore('page_view', { page: 'setup' });
-    fetchStats();
+    recordStatEvent('SITE_VISIT').then((s) => setStats(s));
+    fetchLiveStats().then((s) => setStats(s));
   }, []);
-
-  const fetchStats = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/analytics/stats`);
-      if (res.ok) {
-        const data = await res.json();
-        setStats(data);
-      }
-    } catch (err) {}
-  };
 
   const handleVerifyKey = async () => {
     const keyToTest = apiKey.trim();
@@ -214,6 +205,7 @@ export default function InterviewDetails({ onStartInterview }) {
 
       logAnalyticsEvent('interview_started', { company: finalCompany, jobRole: finalJobRole });
       saveAnalyticsEventToFirestore('interview_started', { company: finalCompany, jobRole: finalJobRole });
+      recordStatEvent('INTERVIEW_STARTED', { username: finalUsername, company: finalCompany, jobRole: finalJobRole });
 
       onStartInterview({
         interviewId: startData.interviewId || `session-${Date.now()}`,
@@ -443,7 +435,7 @@ export default function InterviewDetails({ onStartInterview }) {
             <div className="bg-[#ffcc00] p-1.5 border-2 border-black text-center flex flex-col justify-center flex-1">
               <div className="text-black text-[9px] uppercase font-extrabold">WOULD USE AGAIN</div>
               <div className="text-black font-extrabold text-sm md:text-base mt-0.5">
-                {stats.totalSurveys > 0 ? Math.round((stats.wouldUseAgainCount / stats.totalSurveys) * 100) : 100}%
+                {stats.totalSurveys > 0 ? Math.round((stats.wouldUseAgainCount / stats.totalSurveys) * 100) : 0}%
               </div>
             </div>
 
@@ -451,7 +443,7 @@ export default function InterviewDetails({ onStartInterview }) {
             <div className="bg-[#ffcc00] p-1.5 border-2 border-black text-center flex flex-col justify-center flex-1">
               <div className="text-black text-[9px] uppercase font-extrabold">AVG PRICE WILLING TO PAY</div>
               <div className="text-black font-extrabold text-sm md:text-base mt-0.5">
-                ₹{stats.avgPrice || 75}
+                ₹{stats.avgPrice || 0}
               </div>
             </div>
 
@@ -459,7 +451,7 @@ export default function InterviewDetails({ onStartInterview }) {
             <div className="bg-[#ffcc00] p-1.5 border-2 border-black text-center flex flex-col justify-center flex-1">
               <div className="text-black text-[9px] uppercase font-extrabold">WOULD REFER TO FRIEND</div>
               <div className="text-black font-extrabold text-sm md:text-base mt-0.5">
-                {stats.totalSurveys > 0 ? Math.round((stats.wouldReferCount / stats.totalSurveys) * 100) : 100}%
+                {stats.totalSurveys > 0 ? Math.round((stats.wouldReferCount / stats.totalSurveys) * 100) : 0}%
               </div>
             </div>
           </div>
