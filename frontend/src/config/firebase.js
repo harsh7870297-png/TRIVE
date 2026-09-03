@@ -68,3 +68,19 @@ export const saveAnalyticsEventToFirestore = async (eventType, usernameOrSession
     }
   }
 };
+
+/**
+ * Save complete Interview Session (Setup info, Transcript, Behavioral Stats, & Scorecards) directly to Firebase Firestore ('interviews' collection)
+ */
+export const saveInterviewSessionToFirestore = async (sessionData) => {
+  if (db) {
+    try {
+      await db.collection("interviews").add({
+        ...sessionData,
+        createdAt: window.firebase.firestore.FieldValue.serverTimestamp()
+      });
+    } catch (err) {
+      console.warn("Firestore interview session save warning:", err);
+    }
+  }
+};

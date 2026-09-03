@@ -3,6 +3,7 @@ import SpriteDisplay from './SpriteDisplay';
 import { API_BASE_URL } from '../config/api';
 import { generateTurnDirectly, generateEvaluationsDirectly } from '../services/directGeminiService';
 import { recordStatEvent } from '../services/statsService';
+import { saveInterviewSessionToFirestore } from '../config/firebase';
 
 export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetup }) {
   // Timer state: 300 seconds (5 minutes)
@@ -688,6 +689,27 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
 
     if (evals) {
       setEvaluations(evals);
+      // Save complete session record (Setup details, full transcript, behavioral metrics & interviewer scorecards) to Firebase Firestore
+      saveInterviewSessionToFirestore({
+        interviewId: config.interviewId,
+        username: config.username,
+        company: config.company,
+        jobRole: config.jobRole,
+        jobDescription: config.jobDescription,
+        salary: config.salary,
+        difficulty: config.difficulty,
+        model: config.model,
+        elapsedSeconds: elapsedSeconds,
+        transcript: historyToUse,
+        behavioralStats: {
+          gazeDeviationsCount: gazeDeviationsCount,
+          postureViolationsCount: postureViolationsCount,
+          fillerWordCount: fillerWordCount,
+          fillerWordsList: Object.keys(fillerWordsList),
+          avgThinkingTime: candidateTurnCount > 0 ? (totalThinkingSeconds / candidateTurnCount).toFixed(1) : '0.0'
+        },
+        evaluations: evals
+      });
     } else {
       setErrorMsg('Could not fetch evaluations.');
     }
