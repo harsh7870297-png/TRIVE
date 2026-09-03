@@ -29,14 +29,7 @@ namespace TriveApi.Controllers
                 return BadRequest(new { message = "Username cannot be empty." });
             }
 
-            var trimmed = request.Username.Trim();
-            var exists = await _db.UserInterviews.AnyAsync(u => u.Username.ToLower() == trimmed.ToLower());
-
-            if (exists)
-            {
-                return BadRequest(new { message = "Username already exists. Please choose another username." });
-            }
-
+            // Always allow interview sessions without blocking candidates on username reuse
             return Ok(new { available = true });
         }
     }

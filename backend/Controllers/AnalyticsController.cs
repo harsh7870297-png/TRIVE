@@ -50,14 +50,14 @@ namespace TriveApi.Controllers
                 var startedCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(_db.UserInterviews);
                 var finishedCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(_db.UserInterviews, u => u.InterviewStatus.ToLower() == "completed");
 
-                var incompleteInterviews = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
+                var abandonedTimes = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
                     System.Linq.Queryable.Select(
-                        System.Linq.Queryable.Where(_db.UserInterviews, u => u.InterviewStatus.ToLower() != "completed" && u.ExitTimeSeconds > 0),
-                        u => u.ExitTimeSeconds
+                        System.Linq.Queryable.Where(_db.UserInterviews, u => u.ExitTimeSeconds > 0 && u.InterviewStatus.ToLower() != "completed"),
+                        u => (double)u.ExitTimeSeconds
                     )
                 );
 
-                double avgQuitSeconds = incompleteInterviews.Count > 0 ? System.Linq.Enumerable.Average(incompleteInterviews) : 0;
+                double avgQuitSeconds = abandonedTimes.Count > 0 ? Math.Round(System.Linq.Enumerable.Average(abandonedTimes)) : 0;
 
                 var surveys = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(_db.Surveys);
                 int totalSurveys = surveys.Count;

@@ -155,6 +155,36 @@ namespace TriveApi.Services
             string candidateLatestAnswer,
             int elapsedSeconds)
         {
+            string difficultyGuidelines = difficulty switch
+            {
+                1 => @"DIFFICULTY LEVEL 1 (ENTRY / VERY EASY):
+- Questions: Basic foundational concepts, simple high-level overview questions, welcoming warm-ups.
+- Tone: Extremely friendly, supportive, encouraging.
+- Evaluation & Strictness: Extremely forgiving. Praise basic effort. Focus on enthusiasm and basic understanding. Do NOT grill on edge cases, system design, or deep architecture.",
+
+                2 => @"DIFFICULTY LEVEL 2 (ASSOCIATE / EASY):
+- Questions: Standard entry-level practical questions, everyday scenario questions, common framework usage.
+- Tone: Professional and welcoming.
+- Evaluation & Strictness: Forgiving. Accept standard textbook definitions. Ask mild follow-ups if missing details.",
+
+                3 => @"DIFFICULTY LEVEL 3 (MID-LEVEL / MODERATE):
+- Questions: Realistic mid-level technical and behavioral scenarios, trade-off questions, real-world bug/feature discussions.
+- Tone: Standard rigorous interview style.
+- Evaluation & Strictness: Balanced. Expect clear reasoning, specific examples, and awareness of trade-offs.",
+
+                4 => @"DIFFICULTY LEVEL 4 (SENIOR / HARD):
+- Questions: Deep architectural design, performance bottlenecks, concurrency/scaling, complex edge-case handling, system failure recovery.
+- Tone: Critical, probing, challenging assumptions.
+- Evaluation & Strictness: Strict! Challenge vague or hand-waving answers. Demand concrete technical implementation details and trade-offs.",
+
+                5 => @"DIFFICULTY LEVEL 5 (PRINCIPAL / FAANG HARD / EXTREME):
+- Questions: Advanced system architecture, low-level internal mechanics, distributed consensus/failover under load, complex stress testing, extreme behavioral dilemmas under crisis.
+- Tone: Intense, unrelenting, highly analytical, zero tolerance for surface-level buzzwords.
+- Evaluation & Strictness: Relentlessly strict! Immediately call out hand-waving, vague buzzwords, or incomplete technical details. Drill down aggressively into every claim made by the candidate!",
+
+                _ => "DIFFICULTY LEVEL 3 (MID-LEVEL): Standard interview questions and balanced evaluation."
+            };
+
             bool timeLimitReached = elapsedSeconds >= 270;
 
             var systemPrompt = $@"You are simulating a 3-person panel interview for candidate applying to:
@@ -162,7 +192,10 @@ Company: {company}
 Role: {jobRole}
 Job Description: {jobDescription}
 Salary context: {salary}
-Interview Difficulty Level: {difficulty} out of 5.
+
+=== MANDATORY DIFFICULTY STRICTNESS & QUESTION DEPTH ===
+{difficultyGuidelines}
+=======================================================
 
 The interview panel consists of 3 distinct interviewers:
 1. HR Interviewer:

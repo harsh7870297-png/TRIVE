@@ -144,15 +144,16 @@ namespace TriveApi.Controllers
                 return BadRequest(new { message = "Username is required." });
             }
 
-            var exists = await _db.UserInterviews.AnyAsync(u => u.Username.ToLower() == req.Username.Trim().ToLower());
+            var sessionUsername = req.Username.Trim();
+            var exists = await _db.UserInterviews.AnyAsync(u => u.Username.ToLower() == sessionUsername.ToLower());
             if (exists)
             {
-                return BadRequest(new { message = "Username already exists. Please choose another username." });
+                sessionUsername = $"{sessionUsername}_{Random.Shared.Next(1000, 9999)}";
             }
 
             var record = new UserInterview
             {
-                Username = req.Username.Trim(),
+                Username = sessionUsername,
                 Company = req.Company.Trim(),
                 JobRole = req.JobRole.Trim(),
                 JobDescription = req.JobDescription.Trim(),

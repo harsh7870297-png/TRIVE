@@ -1,5 +1,7 @@
 # Local Database & Excel Files
 *.db
+*.db-shm
+*.db-wal
 *.sqlite
 *.xlsx
 traffic.xlsx

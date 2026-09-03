@@ -45,6 +45,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
   // Answer input & Submission state
   const [answerInput, setAnswerInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isMicMuted, setIsMicMuted] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [evaluations, setEvaluations] = useState(null);
 
@@ -75,11 +76,14 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
   // Persistent Media Stream Ref
   const mediaStreamRef = useRef(null);
 
-  // Refs for Web APIs, Video element, and Input focus
+  // Refs for Web APIs, Video element, Input focus, and Mic management
   const inputRef = useRef(null);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const recognitionRef = useRef(null);
+  const shouldListenRef = useRef(false);
+  const lastViolationTimeRef = useRef(0);
+  const accumulatedTranscriptRef = useRef('');
 
   // Auto-focus input on mount and state changes
   useEffect(() => {
@@ -99,41 +103,154 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     setTurnStartTime(Date.now());
   }, [speakingInterviewer, dialogueState, speakerEnabled, mode]);
 
-  // Speech Recognition Setup
+  // Persistent Refs for Mic accumulation and violation throttling
+  const savedBaseTextRef = useRef('');
+  const answerInputRef = useRef(answerInput);
+
   useEffect(() => {
+    answerInputRef.current = answerInput;
+  }, [answerInput]);
+
+  const handleClearAnswer = () => {
+    setAnswerInput('');
+    savedBaseTextRef.current = '';
+    if (accumulatedTranscriptRef.current !== undefined) {
+      accumulatedTranscriptRef.current = '';
+    }
+  };
+
+  // Speech Recognition Lifecycle Management
+  const stopSpeechRecognition = () => {
+    shouldListenRef.current = false;
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.onend = null;
+        recognitionRef.current.onerror = null;
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionRef.current = null;
+    }
+    setIsListening(false);
+  };
+
+  const startSpeechRecognition = async () => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (SpeechRecognition && inputMode === 'mic') {
+
+    if (!SpeechRecognition) {
+      console.warn("Web Speech API not supported in this browser.");
+      if (inputMode === 'mic') {
+        setErrorMsg("Web Speech API is not supported in this browser (e.g. Firefox). Please use Chrome, Edge, or Safari, or switch input mode to KEYBOARD.");
+      }
+      return;
+    }
+
+    // Clean up existing instance
+    stopSpeechRecognition();
+
+    if (inputMode !== 'mic' || isMicMuted) {
+      return;
+    }
+
+    shouldListenRef.current = true;
+
+    // Explicit mic stream request to trigger browser permission popup if needed
+    try {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Release audio stream track so WebSpeech API can access mic
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    } catch (e) {
+      console.warn('Microphone stream permission denied or error:', e);
+      setErrorMsg('Microphone access denied. Click the lock/mic icon in your browser address bar and set Microphone to "Allow".');
+      return;
+    }
+
+    try {
       const recognition = new SpeechRecognition();
       recognition.continuous = true;
       recognition.interimResults = true;
       recognition.lang = 'en-US';
 
-      recognition.onresult = (event) => {
-        let transcript = '';
-        for (let i = event.resultIndex; i < event.results.length; i++) {
-          transcript += event.results[i][0].transcript;
-        }
-        setAnswerInput((prev) => {
-          const newText = transcript.trim();
-          checkForFillerWords(newText);
-          return newText;
-        });
+      recognition.onstart = () => {
+        setIsListening(true);
+        setErrorMsg('');
       };
 
-      recognition.onerror = () => setIsListening(false);
-      recognition.onend = () => setIsListening(false);
+      recognition.onresult = (event) => {
+        let sessionTranscript = '';
+        for (let i = 0; i < event.results.length; i++) {
+          sessionTranscript += event.results[i][0].transcript;
+        }
+
+        const base = savedBaseTextRef.current ? savedBaseTextRef.current.trim() : '';
+        const current = sessionTranscript.trim();
+        const fullText = base ? `${base} ${current}` : current;
+
+        setAnswerInput(fullText);
+        if (fullText) checkForFillerWords(fullText);
+      };
+
+      recognition.onerror = (err) => {
+        const errType = err?.error || err;
+        console.warn('Speech recognition error:', errType);
+        if (errType === 'not-allowed' || errType === 'service-not-allowed') {
+          setErrorMsg('Microphone access denied. Click the lock icon in your browser address bar and set Microphone to "Allow".');
+          stopSpeechRecognition();
+        } else if (errType === 'audio-capture') {
+          setErrorMsg('No microphone detected by browser. Please check hardware connection and OS privacy settings.');
+          stopSpeechRecognition();
+        } else if (errType === 'network') {
+          setErrorMsg('Speech recognition network error. Web Speech API requires an active internet connection.');
+        }
+      };
+
+      recognition.onend = () => {
+        setIsListening(false);
+        savedBaseTextRef.current = answerInputRef.current;
+
+        // Auto-restart continuous listening with a fresh instance
+        if (shouldListenRef.current && !isMicMuted) {
+          setTimeout(() => {
+            if (shouldListenRef.current && !isMicMuted) {
+              startSpeechRecognition();
+            }
+          }, 250);
+        }
+      };
 
       recognitionRef.current = recognition;
-      try {
-        recognition.start();
-        setIsListening(true);
-      } catch (e) {}
+      recognition.start();
+    } catch (e) {
+      console.warn('Failed to start SpeechRecognition:', e);
+    }
+  };
+
+  // Toggle Mic Mute / Unmute
+  const toggleMicMute = () => {
+    if (isMicMuted) {
+      setIsMicMuted(false);
+      savedBaseTextRef.current = answerInputRef.current;
+      startSpeechRecognition();
+    } else {
+      setIsMicMuted(true);
+      stopSpeechRecognition();
+    }
+  };
+
+  // Speech Recognition Setup Effect
+  useEffect(() => {
+    if (inputMode === 'mic') {
+      savedBaseTextRef.current = answerInputRef.current;
+      startSpeechRecognition();
+    } else {
+      stopSpeechRecognition();
     }
 
     return () => {
-      try { recognitionRef.current?.stop(); } catch (e) {}
+      stopSpeechRecognition();
     };
-  }, [inputMode]);
+  }, [inputMode, isMicMuted]);
 
   // Request & Re-bind Camera Stream
   const requestCameraAccess = async () => {
@@ -244,19 +361,34 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
               const yawDev = currentYawRatio - base.yawRatio;
               const pitchDev = currentPitchRatio - base.pitchRatio;
               const yDev = currentAvgY - base.avgY;
+              const now = Date.now();
+              const canIncrement = now - lastViolationTimeRef.current > 1200;
 
-              if (yawDev > 0.07) {
+              // Significantly lower sensitivity (wider thresholds)
+              if (yawDev > 0.16) {
                 setGazeStatus('Far Right');
-                setGazeDeviations((prev) => prev + 1);
-              } else if (yawDev < -0.07) {
+                if (canIncrement) {
+                  setGazeDeviations((prev) => prev + 1);
+                  lastViolationTimeRef.current = now;
+                }
+              } else if (yawDev < -0.16) {
                 setGazeStatus('Far Left');
-                setGazeDeviations((prev) => prev + 1);
-              } else if (pitchDev > 0.07) {
+                if (canIncrement) {
+                  setGazeDeviations((prev) => prev + 1);
+                  lastViolationTimeRef.current = now;
+                }
+              } else if (pitchDev > 0.16) {
                 setGazeStatus('Far Up');
-                setGazeDeviations((prev) => prev + 1);
-              } else if (pitchDev < -0.07 || yDev > 18 || currentAvgY > 90) {
+                if (canIncrement) {
+                  setGazeDeviations((prev) => prev + 1);
+                  lastViolationTimeRef.current = now;
+                }
+              } else if (pitchDev < -0.16 || yDev > 32 || currentAvgY > 105) {
                 setGazeStatus('Slouching');
-                setPostureViolations((prev) => prev + 1);
+                if (canIncrement) {
+                  setPostureViolations((prev) => prev + 1);
+                  lastViolationTimeRef.current = now;
+                }
               } else {
                 setGazeStatus('Centered');
               }
@@ -385,8 +517,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     if (!answerInput.trim() || isSubmitting) return;
 
     if (inputMode === 'mic') {
-      try { recognitionRef.current?.stop(); } catch (err) {}
-      setIsListening(false);
+      stopSpeechRecognition();
     }
 
     const turnLatency = Math.round((Date.now() - turnStartTime) / 1000);
@@ -449,11 +580,27 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
       setErrorMsg('Network error. Failed to reach server.');
     } finally {
       setIsSubmitting(false);
-      if (inputMode === 'mic') {
-        setTimeout(() => { try { recognitionRef.current?.start(); setIsListening(true); } catch (e) {} }, 300);
+      if (inputMode === 'mic' && !isMicMuted) {
+        setTimeout(() => { startSpeechRecognition(); }, 300);
       }
       setTimeout(() => inputRef.current?.focus(), 50);
     }
+  };
+
+  const handleEarlyQuit = async () => {
+    try {
+      if (config.interviewId) {
+        await fetch(`${API_BASE_URL}/api/interview/stop`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            interviewId: config.interviewId,
+            exitTimeSeconds: Math.max(elapsedSeconds, 1)
+          })
+        });
+      }
+    } catch (e) {}
+    onBackToSetup();
   };
 
   const handleStopInterview = async () => {
@@ -771,11 +918,42 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
             mode !== 'interviewing'
               ? 'Interview complete. View evaluations above.'
               : inputMode === 'mic'
-              ? '🎙 LISTENING... SPEAK YOUR ANSWER OR TYPE HERE, THEN PRESS ENTER OR SUBMIT...'
+              ? isMicMuted
+                ? '🔇 MIC MUTED. CLICK "MIC MUTED (OFF)" BUTTON TO UNMUTE AND SPEAK, OR TYPE HERE...'
+                : '🎙 LISTENING... SPEAK YOUR ANSWER OR TYPE HERE, THEN PRESS ENTER OR SUBMIT...'
               : '⌨ TYPE YOUR ANSWER HERE AND PRESS ENTER TO SUBMIT...'
           }
           className="flex-1 w-full bg-[#000000] text-[#ffcc00] border-2 border-[#ffcc00] p-3 font-mono font-bold focus:outline-none placeholder-gray-500 text-xs md:text-sm resize-none"
         />
+
+        {/* CLEAR ANSWER BUTTON */}
+        {Boolean(answerInput.trim()) && (
+          <button
+            type="button"
+            onClick={handleClearAnswer}
+            disabled={mode !== 'interviewing' || isSubmitting}
+            className="bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs md:text-sm px-3 py-3 uppercase border-2 border-black cursor-pointer transition-all flex items-center justify-center gap-1 shrink-0"
+            title="Clear entire answer input text"
+          >
+            ✕ CLEAR
+          </button>
+        )}
+
+        {/* MIC MUTE / UNMUTE TOGGLE BUTTON (When in Mic Mode) */}
+        {inputMode === 'mic' && (
+          <button
+            type="button"
+            onClick={toggleMicMute}
+            className={`px-4 py-3 font-extrabold text-xs md:text-sm uppercase border-2 border-black cursor-pointer transition-all flex items-center justify-center gap-1.5 min-w-[150px] ${
+              isMicMuted
+                ? 'bg-red-600 hover:bg-red-700 text-white animate-pulse'
+                : 'bg-[#86efac] hover:bg-[#4ade80] text-black'
+            }`}
+            title={isMicMuted ? 'Microphone muted. Click to UNMUTE' : 'Microphone active. Click to MUTE (prevents ambient noise)'}
+          >
+            {isMicMuted ? '🔇 MIC MUTED (OFF)' : '🎙 MIC ON (LISTENING)'}
+          </button>
+        )}
 
         {/* SUBMIT ANSWER BUTTON */}
         <button
@@ -817,7 +995,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
       <div className="grid grid-cols-3 gap-2">
         <button
           type="button"
-          onClick={onBackToSetup}
+          onClick={handleEarlyQuit}
           className="bg-[#93c5fd] hover:bg-[#60a5fa] text-black font-extrabold text-xs md:text-sm py-2 border-2 border-black uppercase cursor-pointer transition-all text-center"
         >
           PREVIOUS WINDOW
