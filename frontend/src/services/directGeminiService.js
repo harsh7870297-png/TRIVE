@@ -63,21 +63,22 @@ export async function verifyKeyDirectly(apiKey, selectedModel = 'gemini-2.0-flas
   const cleanKey = (apiKey || '').trim();
   if (!cleanKey) return { valid: false, message: 'Please enter your Gemini API key.' };
 
+  // First try generating content directly with selected model (most reliable check)
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
-    const res = await fetch(endpoint);
-    if (res.ok) {
-      return { valid: true, message: 'API key verified successfully.' };
-    }
-    const data = await res.json().catch(() => ({}));
-    return { valid: false, message: data?.error?.message || 'Invalid Gemini API key.' };
+    await callGeminiDirectApi(cleanKey, selectedModel, 'Respond with JSON: {"status":"ok"}');
+    return { valid: true, message: 'API key verified successfully.' };
   } catch (err) {
-    // If models endpoint blocked, try generateContent check
+    // If selected model failed, try listing models endpoint as backup
     try {
-      await callGeminiDirectApi(cleanKey, selectedModel, 'Respond with JSON: {"status":"ok"}');
-      return { valid: true, message: 'API key verified successfully.' };
-    } catch (fallbackErr) {
-      return { valid: false, message: fallbackErr.message || "We couldn't reach Google Gemini API. Please check your network connection." };
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
+      const res = await fetch(endpoint);
+      if (res.ok) {
+        return { valid: true, message: 'API key verified successfully.' };
+      }
+      const data = await res.json().catch(() => ({}));
+      return { valid: false, message: data?.error?.message || err.message || 'Invalid Gemini API key.' };
+    } catch (fetchErr) {
+      return { valid: false, message: err.message || "Invalid Gemini API key or connection error." };
     }
   }
 }

@@ -75,30 +75,36 @@ export default function InterviewDetails({ onStartInterview }) {
     setErrorMsg('');
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Gemini-API-Key': apiKey.trim(),
-          'X-Gemini-Model': selectedModel
+      let verified = false;
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Gemini-API-Key': apiKey.trim(),
+            'X-Gemini-Model': selectedModel
+          }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.valid) verified = true;
         }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.valid) {
-          setIsKeyVerified(true);
-          setErrorMsg('');
-          setKeyVerifying(false);
-          return;
+      } catch (e) {}
+
+      if (!verified) {
+        const directResult = await verifyKeyDirectly(apiKey.trim(), selectedModel);
+        if (directResult.valid) {
+          verified = true;
+        } else {
+          setErrorMsg(directResult.message);
         }
       }
-      const directResult = await verifyKeyDirectly(apiKey.trim(), selectedModel);
-      setIsKeyVerified(directResult.valid);
-      setErrorMsg(directResult.valid ? '' : directResult.message);
+
+      setIsKeyVerified(verified);
+      if (verified) setErrorMsg('');
     } catch (err) {
-      const directResult = await verifyKeyDirectly(apiKey.trim(), selectedModel);
-      setIsKeyVerified(directResult.valid);
-      setErrorMsg(directResult.valid ? '' : directResult.message);
+      setIsKeyVerified(false);
+      setErrorMsg('Error verifying Gemini API key.');
     } finally {
       setKeyVerifying(false);
     }
