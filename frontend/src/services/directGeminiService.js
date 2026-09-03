@@ -22,24 +22,43 @@ async function callGeminiDirectApi(apiKey, selectedModel, promptText) {
   for (const model of modelsToTry) {
     try {
       const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
-      const payload = {
-        contents: [
-          { parts: [{ text: promptText }] }
-        ],
-        generationConfig: {
-          responseMimeType: 'application/json'
-        }
-      };
-
-      const res = await fetch(endpoint, {
+      
+      // Attempt 1: With responseMimeType
+      let res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: promptText }] }],
+          generationConfig: { responseMimeType: 'application/json' }
+        })
       });
+
+      // Attempt 2: Without responseMimeType if 400 returned
+      if (!res.ok && res.status === 400) {
+        res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: promptText }] }]
+          })
+        });
+      }
 
       if (res.ok) {
         const data = await res.json();
-        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        let text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+        text = text.trim();
+        // Remove markdown code fences if present
+        if (text.startsWith('```json')) {
+          text = text.substring(7);
+        } else if (text.startsWith('```')) {
+          text = text.substring(3);
+        }
+        if (text.endsWith('```')) {
+          text = text.substring(0, text.length - 3);
+        }
+        text = text.trim();
+
         if (text) {
           try {
             return JSON.parse(text);
@@ -63,24 +82,45 @@ export async function verifyKeyDirectly(apiKey, selectedModel = 'gemini-2.0-flas
   const cleanKey = (apiKey || '').trim();
   if (!cleanKey) return { valid: false, message: 'Please enter your Gemini API key.' };
 
-  // First try generating content directly with selected model (most reliable check)
-  try {
-    await callGeminiDirectApi(cleanKey, selectedModel, 'Respond with JSON: {"status":"ok"}');
-    return { valid: true, message: 'API key verified successfully.' };
-  } catch (err) {
-    // If selected model failed, try listing models endpoint as backup
+  const modelsToTry = [selectedModel, 'gemini-2.0-flash', 'gemini-1.5-flash'].filter(Boolean);
+
+  for (const model of modelsToTry) {
     try {
-      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`;
-      const res = await fetch(endpoint);
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${cleanKey}`;
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: "Hello" }] }]
+        })
+      });
+
       if (res.ok) {
         return { valid: true, message: 'API key verified successfully.' };
       }
+
       const data = await res.json().catch(() => ({}));
-      return { valid: false, message: data?.error?.message || err.message || 'Invalid Gemini API key.' };
-    } catch (fetchErr) {
-      return { valid: false, message: err.message || "Invalid Gemini API key or connection error." };
-    }
+      if (data?.error?.message) {
+        if (data.error.message.includes('API key not valid') || data.error.message.includes('API_KEY_INVALID')) {
+          return { valid: false, message: 'Invalid Gemini API key. Please check your key at aistudio.google.com' };
+        }
+      }
+    } catch (e) {}
   }
+
+  // Backup attempt: models GET endpoint
+  try {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${cleanKey}`);
+    if (res.ok) {
+      return { valid: true, message: 'API key verified successfully.' };
+    }
+    const data = await res.json().catch(() => ({}));
+    if (data?.error?.message) {
+      return { valid: false, message: data.error.message };
+    }
+  } catch (e) {}
+
+  return { valid: false, message: 'Failed to verify Gemini API key. Please check your network connection.' };
 }
 
 export async function startInterviewDirectly({ apiKey, model, company, jobRole, jobDescription, salary, difficulty }) {
