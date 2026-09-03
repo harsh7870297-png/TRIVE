@@ -71,8 +71,8 @@ export default function InterviewDetails({ onStartInterview }) {
       setErrorMsg('Please enter your Gemini API key.');
       return;
     }
-    setErrorMsg('');
     setKeyVerifying(true);
+    setErrorMsg('');
 
     try {
       const res = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
@@ -83,17 +83,22 @@ export default function InterviewDetails({ onStartInterview }) {
           'X-Gemini-Model': selectedModel
         }
       });
-      const data = await res.json();
-      if (res.ok && data.valid) {
-        setIsKeyVerified(true);
-        setErrorMsg('');
-      } else {
-        setIsKeyVerified(false);
-        setErrorMsg(data.message || "We couldn't reach the AI interviewer. Please check your API key or connection.");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.valid) {
+          setIsKeyVerified(true);
+          setErrorMsg('');
+          setKeyVerifying(false);
+          return;
+        }
       }
+      const directResult = await verifyKeyDirectly(apiKey.trim(), selectedModel);
+      setIsKeyVerified(directResult.valid);
+      setErrorMsg(directResult.valid ? '' : directResult.message);
     } catch (err) {
-      setIsKeyVerified(false);
-      setErrorMsg("We couldn't reach the AI interviewer. Please check your API key or connection.");
+      const directResult = await verifyKeyDirectly(apiKey.trim(), selectedModel);
+      setIsKeyVerified(directResult.valid);
+      setErrorMsg(directResult.valid ? '' : directResult.message);
     } finally {
       setKeyVerifying(false);
     }
@@ -119,46 +124,76 @@ export default function InterviewDetails({ onStartInterview }) {
 
     try {
       if (!isKeyVerified) {
-        const keyRes = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
+        try {
+          const keyRes = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-Gemini-API-Key': apiKey.trim(),
+              'X-Gemini-Model': selectedModel
+            }
+          });
+          if (keyRes.ok) {
+            const keyData = await keyRes.json();
+            if (keyData.valid) setIsKeyVerified(true);
+          }
+        } catch (e) {
+          const directKey = await verifyKeyDirectly(apiKey.trim(), selectedModel);
+          if (directKey.valid) {
+            setIsKeyVerified(true);
+          } else {
+            setErrorMsg(directKey.message);
+            setLoading(false);
+            return;
+          }
+        }
+      }
+
+      let startData = null;
+      try {
+        const startRes = await fetch(`${API_BASE_URL}/api/interview/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'X-Gemini-API-Key': apiKey.trim(),
             'X-Gemini-Model': selectedModel
-          }
+          },
+          body: JSON.stringify({
+            username: finalUsername,
+            company: finalCompany,
+            jobRole: finalJobRole,
+            jobDescription: finalJobDescription,
+            salary: finalSalary,
+            difficulty: difficulty,
+            model: selectedModel
+          })
         });
-        const keyData = await keyRes.json();
-        if (!keyRes.ok || !keyData.valid) {
-          setErrorMsg(keyData.message || "We couldn't reach the AI interviewer. Please check your API key or connection.");
+
+        if (startRes.ok) {
+          startData = await startRes.json();
+        }
+      } catch (err) {}
+
+      if (!startData) {
+        try {
+          startData = await startInterviewDirectly({
+            apiKey: apiKey.trim(),
+            model: selectedModel,
+            company: finalCompany,
+            jobRole: finalJobRole,
+            jobDescription: finalJobDescription,
+            salary: finalSalary,
+            difficulty: difficulty
+          });
+        } catch (directErr) {
+          setErrorMsg(directErr.message || 'Failed to initialize interview session.');
           setLoading(false);
           return;
         }
       }
 
-      const startRes = await fetch(`${API_BASE_URL}/api/interview/start`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Gemini-API-Key': apiKey.trim(),
-          'X-Gemini-Model': selectedModel
-        },
-        body: JSON.stringify({
-          username: finalUsername,
-          company: finalCompany,
-          jobRole: finalJobRole,
-          jobDescription: finalJobDescription,
-          salary: finalSalary,
-          difficulty: difficulty,
-          model: selectedModel
-        })
-      });
-
-      const startData = await startRes.json();
-      if (!startRes.ok) {
-        setErrorMsg(startData.message || 'Failed to initialize interview session.');
-        setLoading(false);
-        return;
-      }
+      logAnalyticsEvent('interview_started', { company: finalCompany, jobRole: finalJobRole });
+      saveAnalyticsEventToFirestore('interview_started', { company: finalCompany, jobRole: finalJobRole });
 
       onStartInterview({
         interviewId: startData.interviewId,
@@ -176,7 +211,7 @@ export default function InterviewDetails({ onStartInterview }) {
       });
 
     } catch (err) {
-      setErrorMsg('Connection error. Please check backend server.');
+      setErrorMsg("We couldn't reach the AI interviewer. Please check your API key or connection.");
     } finally {
       setLoading(false);
     }

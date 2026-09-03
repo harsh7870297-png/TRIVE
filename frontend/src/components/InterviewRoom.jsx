@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import SpriteDisplay from './SpriteDisplay';
 import { API_BASE_URL } from '../config/api';
+import { generateTurnDirectly, generateEvaluationsDirectly } from '../services/directGeminiService';
 
 export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetup }) {
   // Timer state: 300 seconds (5 minutes)
@@ -532,6 +533,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     const updatedHistory = [...conversationHistory, { Speaker: 'CANDIDATE', Text: currentAnswer }];
     setConversationHistory(updatedHistory);
 
+    let data = null;
     try {
       const res = await fetch(`${API_BASE_URL}/api/interview/turn`, {
         method: 'POST',
@@ -554,37 +556,55 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
         })
       });
 
-      const data = await res.json();
       if (res.ok) {
-        const nextSpeaker = data.speakingInterviewer === 'CRITIC' ? 'HIRING_MANAGER' : data.speakingInterviewer;
-        setSpeakingInterviewer(nextSpeaker);
-        setDialogueState((prev) => ({
-          ...prev,
-          [nextSpeaker]: data.dialogue
-        }));
-
-        if (data.expressions) {
-          setExpressions(data.expressions);
-        }
-
-        const newHistory = [...updatedHistory, { Speaker: nextSpeaker, Text: data.dialogue }];
-        setConversationHistory(newHistory);
-
-        if (data.isConcluded || elapsedSeconds >= 300) {
-          handleFinishInterview(newHistory);
-        }
-      } else {
-        setErrorMsg(data.message || 'Error communicating with AI interviewer.');
+        data = await res.json();
       }
-    } catch (err) {
-      setErrorMsg('Network error. Failed to reach server.');
-    } finally {
-      setIsSubmitting(false);
-      if (inputMode === 'mic' && !isMicMuted) {
-        setTimeout(() => { startSpeechRecognition(); }, 300);
+    } catch (err) {}
+
+    if (!data) {
+      try {
+        data = await generateTurnDirectly({
+          apiKey: config.apiKey,
+          model: config.model,
+          company: config.company,
+          jobRole: config.jobRole,
+          jobDescription: config.jobDescription,
+          salary: config.salary,
+          difficulty: config.difficulty || 3,
+          history: updatedHistory,
+          latestAnswer: currentAnswer,
+          elapsedSeconds: elapsedSeconds
+        });
+      } catch (directErr) {
+        setErrorMsg(directErr.message || 'Error communicating with AI interviewer.');
       }
-      setTimeout(() => inputRef.current?.focus(), 50);
     }
+
+    if (data) {
+      const nextSpeaker = data.speakingInterviewer === 'CRITIC' ? 'HIRING_MANAGER' : data.speakingInterviewer;
+      setSpeakingInterviewer(nextSpeaker);
+      setDialogueState((prev) => ({
+        ...prev,
+        [nextSpeaker]: data.dialogue
+      }));
+
+      if (data.expressions) {
+        setExpressions(data.expressions);
+      }
+
+      const newHistory = [...updatedHistory, { Speaker: nextSpeaker, Text: data.dialogue }];
+      setConversationHistory(newHistory);
+
+      if (data.isConcluded || elapsedSeconds >= 300) {
+        handleFinishInterview(newHistory);
+      }
+    }
+
+    setIsSubmitting(false);
+    if (inputMode === 'mic' && !isMicMuted) {
+      setTimeout(() => { startSpeechRecognition(); }, 300);
+    }
+    setTimeout(() => inputRef.current?.focus(), 50);
   };
 
   const handleEarlyQuit = async () => {
@@ -625,6 +645,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     setMode('evaluating');
     if (window.speechSynthesis) window.speechSynthesis.cancel();
 
+    let evals = null;
     try {
       const res = await fetch(`${API_BASE_URL}/api/interview/evaluate`, {
         method: 'POST',
@@ -644,17 +665,30 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
         })
       });
 
-      const evals = await res.json();
       if (res.ok) {
-        setEvaluations(evals);
-      } else {
-        setErrorMsg('Could not fetch evaluations.');
+        evals = await res.json();
       }
-    } catch (err) {
-      setErrorMsg('Failed to load interview results.');
-    } finally {
-      setMode('results');
+    } catch (err) {}
+
+    if (!evals) {
+      try {
+        evals = await generateEvaluationsDirectly({
+          apiKey: config.apiKey,
+          model: config.model,
+          company: config.company,
+          jobRole: config.jobRole,
+          jobDescription: config.jobDescription,
+          history: historyToUse
+        });
+      } catch (e) {}
     }
+
+    if (evals) {
+      setEvaluations(evals);
+    } else {
+      setErrorMsg('Could not fetch evaluations.');
+    }
+    setMode('results');
   };
 
   const formatTime = (secs) => {
