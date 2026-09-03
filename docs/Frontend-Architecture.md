@@ -1,97 +1,115 @@
 ---
-title: "Frontend Architecture & Neo-Brutalist UI System"
+title: "TRIVE Frontend Architecture"
 tags:
   - frontend
   - react
-  - tailwind
-  - ui-design
+  - vite
+  - architecture
+  - trive
   - obsidian-vault
-last_updated: 2026-09-03
+last_updated: 2026-09-04
 ---
 
-# 🎨 Frontend Architecture & Neo-Brutalist UI System
+# 🎨 TRIVE Frontend Architecture
 
-This document describes the React frontend architecture, component layout, state machine, and the **Neo-Brutalist retro design system** used in TRIVE.
+This document details the frontend engineering design of **TRIVE**, built with **React 19**, **Vite**, **Tailwind CSS v4** (Neo-Brutalist design language), Web Speech API, and a serverless Direct Gemini client fallback module.
 
-Related: [[Index]] | [[Architecture]] | [[AI-Interviewer-Engine]] | [[Behavioral-Analytics]]
+Related: [[Index]] | [[Architecture]] | [[AI-Interviewer-Engine]] | [[Behavioral-Analytics]] | [[Common-Mistakes]]
 
 ---
 
-## 🔄 App State Machine (`App.jsx`)
+## 🧩 Component & Directory Hierarchy
 
-TRIVE's user flow is driven by a clean 4-stage state machine:
+```
+frontend/
+├── public/
+│   └── assets/
+│       └── avatars/             # Pixel art sprite layers (HR, Technical, Manager)
+├── src/
+│   ├── assets/                  # SVG logos and static media
+│   ├── components/
+│   │   ├── InterviewDetails.jsx # Setup form, model selection, live stats, key verification
+│   │   ├── InterviewRoom.jsx    # Core interview UI, dialogue box, webcam, sprites, mic controls
+│   │   ├── SpriteDisplay.jsx    # Expression sprite renderer per interviewer
+│   │   └── Survey.jsx           # End-of-session feedback survey
+│   ├── config/
+│   │   ├── api.js               # Dynamic API base URL resolver
+│   │   └── firebase.js          # GA4 analytics & Firestore event persistence
+│   ├── services/
+│   │   ├── directGeminiService.js # Serverless direct Google Gemini REST API client
+│   │   └── statsService.js      # Zero-baseline live community statistics tracker
+│   ├── App.jsx                  # Navigation state machine & error boundaries
+│   └── main.jsx                 # React root entry point
+└── package.json
+```
+
+---
+
+## 🕹️ Application State Machine
+
+The top-level `App.jsx` component manages app navigation through four primary states:
 
 ```mermaid
 stateDiagram-v2
-    [*] --> setup: Initial Load
-    setup --> room: User Submits Details (POST /api/interview/start)
-    room --> survey: Interview Finish / Timer Expiry / Abandon
-    survey --> completed: Submit Feedback Survey
-    completed --> setup: Restart Button Clicked
+    [*] --> setup: App Launch (Record SITE_VISIT)
+    setup --> room: Click START INTERVIEW (Record INTERVIEW_STARTED)
+    room --> survey: Finish Interview (Record INTERVIEW_FINISHED)
+    survey --> setup: Submit Survey (Record SURVEY_SUBMITTED)
 ```
 
-| Step | Component | Responsibilities |
-| :--- | :--- | :--- |
-| `setup` | `InterviewDetails.jsx` | Configures username, role, salary, difficulty, Gemini API key, displays pixel sprites & live stats. |
-| `room` | `InterviewRoom.jsx` | Conducts interactive interview, webcam tracking, audio TTS/STT, panel dialogue, timer, and scorecards. |
-| `survey` | `Survey.jsx` | Collects post-interview user feedback (pricing, recommendations, rating). |
-| `completed` | `Completion.jsx` | Final completion screen with restart capability. |
+1. **`setup` (`InterviewDetails.jsx`)**: Candidate inputs credentials, selects Gemini model, enters API Key (displays `✓ VERIFIED` badge), configures input mode (Mic / Keyboard), and reviews live metrics.
+2. **`room` (`InterviewRoom.jsx`)**: The 5-minute panel interview room. Handles Web Speech STT, Speech Synthesis TTS, webcam posture/gaze analytics, filler word count, turn submissions, and sprite animations.
+3. **`survey` (`Survey.jsx`)**: 4-question feedback survey recording satisfaction, willing price, and referral metrics.
+4. **`results`**: Displays detailed HR, Technical, and Hiring Manager scorecards with 0-100 metric gauges.
 
 ---
 
-## 🎨 Neo-Brutalist Visual Design System
+## ⚡ Direct Gemini Fallback Service (`directGeminiService.js`)
 
-TRIVE adheres to a distinct **Retro Neo-Brutalist Aesthetic** characterized by high contrast, solid black borders, uppercase typography, and vibrant block colors.
+To support serverless online deployments (Vercel, Netlify, GitHub Pages) without an active ASP.NET Core backend server, `directGeminiService.js` provides direct browser-to-Google Gemini API communication:
 
-### Signature Color Palette
-
-```
-  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
-  │  #8b5cf6    │  │  #ffcc00    │  │  #86efac    │  │  #93c5fd    │  │  #ffffff    │
-  │  Vibrant    │  │  Retro      │  │  Light      │  │  Light      │  │  Pure       │
-  │  Purple     │  │  Yellow     │  │  Green      │  │  Blue       │  │  White      │
-  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
-```
-
-| Color Hex | Name | Primary Application |
-| :--- | :--- | :--- |
-| `#8b5cf6` | Vibrant Purple | Header banner, HR badge, NEXT primary action button, high-priority stats |
-| `#ffcc00` | Retro Yellow | Title subtitles, model selects, API key inputs, Manager badge, started metrics |
-| `#86efac` | Light Green | Left panel background (Green Region), finished stats, verified badges |
-| `#93c5fd` | Light Blue | Right panel background (Blue Region), Technical badge, keyboard mode toggle |
-| `#ffffff` | Pure White | Input boxes, textareas, sprite card containers |
-| `#000000` | Jet Black | Section headers (`bg-[#000000] text-white`), thick borders (`border-3 border-black`) |
+- **`verifyKeyDirectly(apiKey, model)`**: Issues a lightweight test request (`POST https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key=...`). Bypasses browser CORS restrictions associated with GET `/v1beta/models`.
+- **`startInterviewDirectly(config)`**: Generates opening panel introduction and initial question directly from the browser.
+- **`generateTurnDirectly(params)`**: Evaluates candidate answers and generates turn responses, speaker selections, and expression states.
+- **`generateEvaluationsDirectly(params)`**: Generates final HR, Technical, and Hiring Manager scorecards upon completion.
 
 ---
 
-## 🖼️ Pixel Sprite System & Avatar Showcase
+## 🎙️ Speech Recognition Lifecycle (`InterviewRoom.jsx`)
 
-TRIVE features pixel art sprites for the 3 interviewers stored in `frontend/public/assets/avatars/`:
-- `hr/` (`default.png`, `happy.png`, `thinking.png`, `very_pleased.png`, `awkward.png`, `disappointed.png`, `satisfied.png`)
-- `technical/` (`default.png`, `impressed.png`, `skeptical.png`, `investigating.png`, `astonished.png`, `exhausted.png`, `thinking.png`)
-- `hiring_manager/` (`default.png`, `considering.png`, `evaluating.png`, `impressed.png`, `questioning.png`, `respect.png`, `unimpressed.png`)
+Web Speech API implementations in Chromium browsers stall when `.start()` is called on an already stopped `SpeechRecognition` instance (`InvalidStateError`). 
 
-### Homepage Horizontal Showcase (`InterviewDetails.jsx`)
-In the homepage **Green Region** (`#86efac`), cropped headshot photos of the 3 pixel avatars are displayed horizontally side-by-side:
-
-```jsx
-<div className="grid grid-cols-3 gap-2.5">
-  <div className="bg-white border-3 border-black p-2 flex flex-col items-center">
-    <div className="w-full h-24 bg-[#8b5cf6] border-2 border-black overflow-hidden relative">
-      <img src="/assets/avatars/hr/default.png" className="w-full h-full object-cover object-top pixelated scale-110" />
-    </div>
-    <span className="font-mono font-extrabold text-xs text-black mt-1.5 uppercase">HR</span>
-  </div>
-  ...
-</div>
-```
+TRIVE solves this with a **Fresh Instance Lifecycle Manager**:
+- **`startSpeechRecognition()`**:
+  1. Cleans up and unbinds handlers on existing instances.
+  2. Prompts explicit hardware mic permission via `navigator.mediaDevices.getUserMedia({ audio: true })`.
+  3. Instantiates a `new SpeechRecognition()` object.
+  4. Configures `continuous = true` and `interimResults = true`.
+  5. Automatically re-instantiates fresh instances on `onend` to maintain seamless voice input across speech pauses.
+- **`stopSpeechRecognition()`**: Safely unbinds `onend` and `onerror` handlers before invoking `.stop()`.
 
 ---
 
-## 🎙️ Speech Input (STT) & Voice Output (TTS)
+## 📊 Live Community Metrics Engine (`statsService.js`)
 
-- **Speech Recognition (STT)**: Built using the browser `webkitSpeechRecognition` API. Enabled when candidate toggles `MIC MODE`.
-- **Speech Synthesis (TTS)**: Built using `window.speechSynthesis`. When `VOICE ON` is active, dialogue is read aloud using Web Speech voices.
+TRIVE enforces a strict **0-baseline policy** (no hardcoded metrics like 128, 75, or 100%):
+- Metrics (`siteVisits`, `startedCount`, `finishedCount`, `totalSurveys`, `wouldUseAgainCount`, `wouldReferCount`, `avgPrice`) start at `0`.
+- Recorded live in browser `localStorage` (`trive_live_stats`) and synced with backend API / Firebase Firestore.
+- Percentages and averages are calculated dynamically from actual user interactions:
+  $$\text{Would Use Again \%} = \frac{\text{wouldUseAgainCount}}{\text{totalSurveys}} \times 100$$
+  $$\text{Avg Price} = \frac{\text{totalPriceSum}}{\text{totalSurveys}}$$
+
+---
+
+## 🎨 Neo-Brutalist UI Palette
+
+TRIVE uses a distinctive high-contrast retro Neo-Brutalist design language:
+- **Background Yellow**: `#ffcc00`
+- **Light Blue**: `#93c5fd`
+- **Light Green**: `#86efac`
+- **Purple Accent**: `#8b5cf6`
+- **Terminal Black**: `#000000`
+- **Borders**: 2px - 3px solid `#000000` with zero border radius.
 
 ---
 
@@ -101,3 +119,5 @@ In the homepage **Green Region** (`#86efac`), cropped headshot photos of the 3 p
 - [[Architecture]]
 - [[AI-Interviewer-Engine]]
 - [[Behavioral-Analytics]]
+- [[How-To-Setup-And-Run]]
+- [[Common-Mistakes]]

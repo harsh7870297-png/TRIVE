@@ -7,14 +7,14 @@ tags:
   - deployment
   - troubleshooting
   - obsidian-vault
-last_updated: 2026-09-03
+last_updated: 2026-09-04
 ---
 
 # 🚀 How-To Setup, Run, and Deploy TRIVE
 
-This step-by-step guide walks developers through setting up the environment, launching the backend and frontend, obtaining Gemini API keys, and troubleshooting common issues.
+This step-by-step guide walks developers and users through running TRIVE locally, deploying the ASP.NET Core backend to hosting providers (MonsterASP.NET/Railway/Render), deploying the React frontend to Netlify/Vercel/GitHub Pages, obtaining Gemini API keys, and troubleshooting common issues.
 
-Related: [[Index]] | [[Architecture]] | [[Backend-Architecture]] | [[Frontend-Architecture]]
+Related: [[Index]] | [[Architecture]] | [[Backend-Architecture]] | [[Frontend-Architecture]] | [[Common-Mistakes]]
 
 ---
 
@@ -45,7 +45,7 @@ dotnet build
 dotnet run
 ```
 
-The backend server starts by default at `http://localhost:5000` (or configured port in `Properties/launchSettings.json`).
+The backend server starts by default at `http://localhost:5245` (and `http://localhost:5000`).
 - On startup, EF Core automatically creates `backend/trive.db` (SQLite database).
 
 ---
@@ -65,7 +65,7 @@ npm install
 npm run dev
 ```
 
-Vite launches the application at `http://localhost:5173`. Open this URL in Google Chrome or Microsoft Edge for best Web Speech API support.
+Vite launches the application at `http://localhost:5173`. Open this URL in **Google Chrome**, **Microsoft Edge**, **Brave**, or **Safari** for best Web Speech API support.
 
 ---
 
@@ -75,40 +75,31 @@ Vite launches the application at `http://localhost:5173`. Open this URL in Googl
 2. Click **Create API Key**.
 3. Copy your API key (starts with `AIzaSy...`).
 4. Paste the API key into the **YOUR API KEY (GEMINI)** input field on the TRIVE homepage.
-5. Click **VERIFY KEY** to validate connection before starting an interview.
+5. Click **VERIFY KEY** to validate connection (displays **`✓ VERIFIED`** badge).
 
 ---
 
-## 🏗️ Production Build & Deployment
+## 🌐 Deploying Serverless (Netlify / Vercel / GitHub Pages)
 
-### Building Frontend
-```bash
-cd frontend
-npm run build
-```
-Outputs static bundle to `frontend/dist/`.
+TRIVE features a **Hybrid Direct Gemini Fallback** engine (`directGeminiService.js`). You can deploy the frontend statically **without needing a backend server**:
 
-### Publishing Backend
+1. Push your repository to GitHub (`git push origin main`).
+2. Connect your repository to **Netlify** or **Vercel**.
+3. Set build settings:
+   - **Build Command**: `npm run build`
+   - **Publish Directory**: `dist`
+4. Deploy site! TRIVE will automatically use direct client mode to communicate securely with Google Gemini API from the candidate's browser.
+
+---
+
+## 🏗️ Deploying ASP.NET Core Backend (MonsterASP.NET / Render / Railway)
+
+If hosting the backend C# API server:
 ```bash
 cd backend
 dotnet publish -c Release -o ./publish
 ```
-
----
-
-## ❓ Troubleshooting Guide
-
-### 1. "We couldn't reach the AI interviewer. Please check your API key or connection."
-- **Cause**: Invalid API key, Google API quota exhaustion, or backend server is not running.
-- **Fix**: Verify backend is running on `localhost:5000` or check your API key status at Google AI Studio.
-
-### 2. Speech Recognition (Mic Input) Not Working
-- **Cause**: Web Speech API is only supported in modern Chromium browsers (Chrome, Edge, Brave). Safari/Firefox have limited support.
-- **Fix**: Allow microphone permissions in your browser bar. Switch input mode to `KEYBOARD` if mic is unavailable.
-
-### 3. Database Locking Errors in SQLite
-- **Cause**: Multiple backend instances accessing `trive.db` simultaneously.
-- **Fix**: Stop extra `dotnet run` instances. Delete `trive.db-journal` if present.
+Upload the `./publish` directory to your ASP.NET Core host (e.g. MonsterASP.NET). Ensure CORS policy in `Program.cs` includes your frontend domain.
 
 ---
 
@@ -116,7 +107,6 @@ dotnet publish -c Release -o ./publish
 
 - [[Index]]
 - [[Architecture]]
-- [[AI-Interviewer-Engine]]
-- [[Backend-Architecture]]
 - [[Frontend-Architecture]]
-- [[Database-Schema]]
+- [[Backend-Architecture]]
+- [[Common-Mistakes]]

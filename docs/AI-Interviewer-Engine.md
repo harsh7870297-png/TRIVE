@@ -1,139 +1,68 @@
 ---
-title: "AI Interviewer Engine & Multi-Agent Prompt System"
+title: "TRIVE AI Interviewer Engine"
 tags:
   - ai-engine
   - gemini
+  - prompts
   - multi-agent
-  - prompt-engineering
+  - trive
   - obsidian-vault
-last_updated: 2026-09-03
+last_updated: 2026-09-04
 ---
 
-# 🧠 AI Interviewer Engine & Multi-Agent Prompt System
+# 🧠 Multi-Agent AI Interviewer Engine
 
-This document explains the architecture of TRIVE's **AI Interviewer Engine** implemented in `GeminiService.cs`. It details prompt structures, multi-character panel simulation, expression updates, and model fallbacks.
+This document details the multi-agent AI panel system, prompt engineering guidelines, difficulty levels (1 to 5), structured JSON outputs, and avatar expression state mappings.
 
-Related: [[Index]] | [[Architecture]] | [[Frontend-Architecture]] | [[Backend-Architecture]]
-
----
-
-## 👥 The 3-Person Interview Panel
-
-TRIVE orchestrates three distinct AI personae within a single Gemini request:
-
-| Interviewer | Focus & Persona | Available Expressions |
-| :--- | :--- | :--- |
-| **HR** | Behavioral fit, communication, clarity, teamwork, motivation | `thinking`, `very_pleased`, `happy`, `awkward`, `satisfied`, `disappointed` |
-| **TECHNICAL** | Technical accuracy, system design, code quality, edge cases | `thinking`, `impressed`, `skeptical`, `investigating`, `astonished`, `exhausted` |
-| **HIRING_MANAGER** | Role ownership, business impact, trade-offs, situational judgment | `considering`, `respect`, `impressed`, `questioning`, `evaluating`, `unimpressed` |
+Related: [[Index]] | [[Architecture]] | [[Frontend-Architecture]] | [[Backend-Architecture]] | [[Common-Mistakes]]
 
 ---
 
-## 🎭 Expression Matrix & Emotional Feedback
+## 👥 3-Interviewer Panel Dynamics
 
-Each turn response requires Gemini to return expression state updates for **all 3 interviewers simultaneously**, regardless of who spoke:
+TRIVE simulates a 3-person panel interview. In every turn, Gemini selects **one interviewer to speak** while updating **facial expressions for all 3 members simultaneously**:
 
-```json
-{
-  "speakingInterviewer": "TECHNICAL",
-  "dialogue": "How do you handle database connection pool exhaustion under high concurrency?",
-  "expressions": {
-    "hr": "satisfied",
-    "technical": "investigating",
-    "hiring_manager": "considering"
-  },
-  "isConcluded": false
-}
-```
+### 1. HR Interviewer
+- **Focus**: Behavioral fit, soft skills, communication clarity, poise, teamwork.
+- **Available Expressions**:
+  - `satisfied` (😊): Clear, credible answer meeting behavioral expectations.
+  - `thinking` (🤔): Evaluating candidate soft skills.
+  - `very_pleased` (😁): Exceptionally strong behavioral answer.
+  - `happy` (😄): Positive, engaging answer.
+  - `awkward` (😅): Uncomfortable, nervous, or mildly questionable answer.
+  - `disappointed` (😭): Concerning answer or poor accountability.
 
-### Expression Definitions
+### 2. TECHNICAL Interviewer
+- **Focus**: Algorithmic accuracy, technical depth, problem-solving, trade-offs.
+- **Available Expressions**:
+  - `thinking` (🤔): Evaluating technical reasoning.
+  - `impressed` (😎): Strong technical depth / elegant solution.
+  - `skeptical` (🤨): Unsupported technical claim or flawed reasoning.
+  - `investigating` (🧐): Probing deeper into technical details.
+  - `astonished` (🤯): Sophisticated technical insight.
+  - `exhausted` (🫩): Repeatedly incorrect or hand-waving answers.
 
-#### HR Expressions
-- `thinking` (🤔): Evaluating communication style.
-- `very_pleased` (😁): Exceptional behavioral response.
-- `happy` (😄): Positive, engaging answer.
-- `awkward` (😅): Nervous or questionable response.
-- `satisfied` (😊): Clear, credible answer.
-- `disappointed` (😭): Major red flag or lack of accountability.
-
-#### Technical Expressions
-- `thinking` (🤔): Analyzing architectural logic.
-- `impressed` (😎): Strong technical depth.
-- `skeptical` (🤨): Unsupported technical claim.
-- `investigating` (🧐): Probing deeper into code choices.
-- `astonished` (🤯): Exceptional technical insight.
-- `exhausted` (🫩): Repeatedly incorrect or vague answers.
-
-#### Hiring Manager Expressions
-- `considering` (🤔): Weighing trade-offs.
-- `respect` (🫡): Strong ownership & leadership.
-- `impressed` (😎): Great business alignment.
-- `questioning` (🤨): Unrealistic strategy.
-- `evaluating` (🧐): Assessing trust and reliability.
-- `unimpressed` (😴): Generic or rehearsed answers.
+### 3. HIRING_MANAGER Interviewer
+- **Focus**: Practical role fit, decision-making, ownership, trade-off judgment.
+- **Available Expressions**:
+  - `evaluating` (🧐): Assessing trust and practical responsibility.
+  - `considering` (🤔): Evaluating proposed approach.
+  - `respect` (🫡): Strong ownership and professional accountability.
+  - `impressed` (😎): Excellent practical judgment.
+  - `questioning` (🤨): Questionable decision or unrealistic approach.
+  - `unimpressed` (😴): Generic, rehearsed, or irrelevant answers.
 
 ---
 
-## ⏳ Timer Rules & Forced Wrap-up Logic
+## 🎯 Difficulty Level Guidelines (1 to 5)
 
-The panel interview operates on a **5-minute (300 seconds)** timer:
-- **Elapsed < 270s**: Normal interview flow and back-and-forth questioning.
-- **Elapsed >= 270s**: Prompt injects `ALERT: Elapsed time >= 4:30. NO NEW QUESTIONS ALLOWED. Conclude interview thoughts and set isConcluded to true.`
-- **Elapsed >= 300s**: Frontend automatically triggers `POST /api/interview/evaluate` and transitions to scorecards.
+TRIVE enforces strict prompt guidelines based on selected difficulty level:
 
----
-
-## 📊 Final Evaluation Engine
-
-Upon interview completion, Gemini generates 3 **independent evaluations** without a combined score (preserving character nuance):
-
-```json
-{
-  "hr": {
-    "metrics": [
-      { "label": "Communication Clarity", "score": 82 },
-      { "label": "Behavioral Structure", "score": 78 },
-      { "label": "Speaking Pace & Poise", "score": 85 },
-      { "label": "Professionalism", "score": 88 }
-    ],
-    "feedback": "Actionable feedback on behavioral responses..."
-  },
-  "technical": {
-    "metrics": [
-      { "label": "Technical Accuracy", "score": 88 },
-      { "label": "Subject Depth", "score": 79 },
-      { "label": "Problem Solving", "score": 90 },
-      { "label": "Technical Decision-Making", "score": 84 }
-    ],
-    "feedback": "Actionable technical feedback..."
-  },
-  "hiringManager": {
-    "metrics": [
-      { "label": "Role Fit", "score": 84 },
-      { "label": "Decision Making", "score": 80 },
-      { "label": "Ownership", "score": 86 },
-      { "label": "Situational Judgment", "score": 82 }
-    ],
-    "feedback": "Actionable manager feedback..."
-  }
-}
-```
-
----
-
-## 🛡️ Model Fallback Chain
-
-If the selected model experiences rate limits or downtime, `GeminiService` automatically attempts API calls through the fallback chain:
-
-1. User Selected Model (e.g., `gemini-2.0-flash`)
-2. `gemini-2.0-flash`
-3. `gemini-2.0-flash-lite`
-4. `gemini-1.5-flash`
-5. `gemini-3.1-flash-lite`
-6. `gemini-3.5-flash`
-7. `gemini-3.5-flash-lite`
-
-If all models fail, a structured fallback object (`GetFallbackEvaluations()`) is safely returned, preventing app crashes.
+1. **Difficulty 1 (Entry / Very Easy)**: Basic high-level warm-ups. Extremely supportive and forgiving. No grilling on edge cases.
+2. **Difficulty 2 (Associate / Easy)**: Practical entry-level questions and common framework usage. Standard welcoming tone.
+3. **Difficulty 3 (Mid-Level / Moderate)**: Realistic mid-level scenarios, trade-off questions, real-world bug/feature discussions.
+4. **Difficulty 4 (Senior / Hard)**: System design, concurrency, architecture, failure recovery. Probing and challenging.
+5. **Difficulty 5 (Principal / Extreme)**: Advanced architecture, consensus/failover under extreme load. Zero tolerance for vague buzzwords.
 
 ---
 
@@ -143,3 +72,5 @@ If all models fail, a structured fallback object (`GetFallbackEvaluations()`) is
 - [[Architecture]]
 - [[Frontend-Architecture]]
 - [[Backend-Architecture]]
+- [[How-To-Setup-And-Run]]
+- [[Common-Mistakes]]
