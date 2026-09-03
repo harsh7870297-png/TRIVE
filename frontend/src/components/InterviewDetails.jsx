@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config/api';
 import { logAnalyticsEvent, saveAnalyticsEventToFirestore } from '../config/firebase';
+import { verifyKeyDirectly, startInterviewDirectly } from '../services/directGeminiService';
 
 export default function InterviewDetails({ onStartInterview }) {
   const [defaultUsername] = useState(() => `user${Math.floor(1000 + Math.random() * 9000)}`);
@@ -28,83 +29,83 @@ export default function InterviewDetails({ onStartInterview }) {
     avgPrice: 0
   });
 
-  // Log site visit and fetch live platform statistics
-  useEffect(() => {
-    try {
-      fetch(`${API_BASE_URL}/api/analytics/event`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          eventType: 'SITE_VISIT',
-          usernameOrSession: 'anonymous'
-        })
-      });
-    } catch (e) {}
-
-    // Fetch live statistics
-    fetch(`${API_BASE_URL}/api/analytics/stats`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data) setStats(data);
-      })
-      .catch(() => {});
-
-    // Firebase Firestore + Google Analytics 4
-    logAnalyticsEvent('page_view', { page_title: 'InterviewDetails' });
-    saveAnalyticsEventToFirestore('SITE_VISIT', 'anonymous');
-  }, []);
-
-  const [availableModels] = useState([
-    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommended)' },
-    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-    { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite' },
-    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' }
-  ]);
-
   const [isKeyVerified, setIsKeyVerified] = useState(false);
   const [keyVerifying, setKeyVerifying] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
+  useEffect(() => {
+    logAnalyticsEvent('page_view', { page: 'setup' });
+    saveAnalyticsEventToFirestore('page_view', { page: 'setup' });
+    fetchStats();
+  }, []);
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/analytics/stats`);
+      if (res.ok) {
+        const data = await res.json();
+        setStats(data);
+      }
+    } catch (err) {}
+  };
+
   const handleVerifyKey = async () => {
-    if (!apiKey.trim()) {
-      setErrorMsg('Please enter your Gemini API key.');
+    const keyToTest = apiKey.trim();
+    if (!keyToTest) {
+      setErrorMsg('Please enter your Gemini API key from aistudio.google.com.');
       return;
     }
+
     setKeyVerifying(true);
     setErrorMsg('');
 
     try {
       let verified = false;
+      let diagnosticLogs = [];
+
+      // Step 1: Try Backend Server Verification (if hosted)
       try {
         const res = await fetch(`${API_BASE_URL}/api/interview/verify-key`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Gemini-API-Key': apiKey.trim(),
+            'X-Gemini-API-Key': keyToTest,
             'X-Gemini-Model': selectedModel
           }
         });
         if (res.ok) {
           const data = await res.json();
-          if (data.valid) verified = true;
+          if (data.valid) {
+            verified = true;
+          } else {
+            diagnosticLogs.push(`[Backend Server]: ${data.message || 'Key rejected'}`);
+          }
+        } else {
+          diagnosticLogs.push(`[Backend Server HTTP ${res.status}]`);
         }
-      } catch (e) {}
+      } catch (backendErr) {
+        diagnosticLogs.push(`[Backend Unreachable - Using Direct Client Mode]`);
+      }
 
+      // Step 2: Direct Google Gemini API Verification Fallback
       if (!verified) {
-        const directResult = await verifyKeyDirectly(apiKey.trim(), selectedModel);
+        const directResult = await verifyKeyDirectly(keyToTest, selectedModel);
         if (directResult.valid) {
           verified = true;
         } else {
-          setErrorMsg(directResult.message);
+          diagnosticLogs.push(`[Google Gemini API]: ${directResult.message}`);
+          setErrorMsg(directResult.message || 'Gemini API key verification failed.');
         }
       }
 
       setIsKeyVerified(verified);
-      if (verified) setErrorMsg('');
+      if (verified) {
+        setErrorMsg('');
+      }
     } catch (err) {
       setIsKeyVerified(false);
-      setErrorMsg(err?.message ? `Verification error: ${err.message}` : 'Error verifying Gemini API key.');
+      setErrorMsg(`Verification diagnostic error: ${err?.message || 'Unknown error'}`);
     } finally {
       setKeyVerifying(false);
     }
@@ -114,22 +115,22 @@ export default function InterviewDetails({ onStartInterview }) {
     e.preventDefault();
     setErrorMsg('');
 
-    // Auto-apply defaults if fields are left empty by user
     const finalUsername = username.trim() || defaultUsername;
     const finalCompany = company.trim() || 'google';
     const finalJobRole = jobRole.trim() || 'engineeer';
     const finalSalary = salary.trim() || '600000';
     const finalJobDescription = jobDescription.trim() || 'General software engineering role interview context.';
 
-    if (!apiKey.trim()) {
-      setErrorMsg('Please enter your Gemini API key.');
+    const keyToUse = apiKey.trim();
+    if (!keyToUse) {
+      setErrorMsg('Please enter your Gemini API key before starting.');
       return;
     }
 
     setLoading(true);
 
     try {
-      // 1. Verify key directly if not already marked valid
+      // Step 1: Verification check
       if (!isKeyVerified) {
         let keyValid = false;
         try {
@@ -137,7 +138,7 @@ export default function InterviewDetails({ onStartInterview }) {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
-              'X-Gemini-API-Key': apiKey.trim(),
+              'X-Gemini-API-Key': keyToUse,
               'X-Gemini-Model': selectedModel
             }
           });
@@ -148,11 +149,11 @@ export default function InterviewDetails({ onStartInterview }) {
         } catch (e) {}
 
         if (!keyValid) {
-          const directKey = await verifyKeyDirectly(apiKey.trim(), selectedModel);
+          const directKey = await verifyKeyDirectly(keyToUse, selectedModel);
           if (directKey.valid) {
             keyValid = true;
           } else {
-            setErrorMsg(directKey.message || "Invalid Gemini API key or connection error.");
+            setErrorMsg(`[API Key Check Failed]: ${directKey.message}`);
             setLoading(false);
             return;
           }
@@ -160,14 +161,14 @@ export default function InterviewDetails({ onStartInterview }) {
         setIsKeyVerified(true);
       }
 
-      // 2. Start Interview Session
+      // Step 2: Initialize Interview Session
       let startData = null;
       try {
         const startRes = await fetch(`${API_BASE_URL}/api/interview/start`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'X-Gemini-API-Key': apiKey.trim(),
+            'X-Gemini-API-Key': keyToUse,
             'X-Gemini-Model': selectedModel
           },
           body: JSON.stringify({
@@ -189,7 +190,7 @@ export default function InterviewDetails({ onStartInterview }) {
       if (!startData || !startData.dialogue) {
         try {
           startData = await startInterviewDirectly({
-            apiKey: apiKey.trim(),
+            apiKey: keyToUse,
             model: selectedModel,
             company: finalCompany,
             jobRole: finalJobRole,
@@ -198,7 +199,7 @@ export default function InterviewDetails({ onStartInterview }) {
             difficulty: difficulty
           });
         } catch (directErr) {
-          setErrorMsg(directErr.message || 'Failed to initialize interview session.');
+          setErrorMsg(`[Interview Session Init Error]: ${directErr.message}`);
           setLoading(false);
           return;
         }
@@ -215,7 +216,7 @@ export default function InterviewDetails({ onStartInterview }) {
         jobDescription: finalJobDescription,
         salary: finalSalary,
         difficulty: difficulty,
-        apiKey: apiKey.trim(),
+        apiKey: keyToUse,
         model: selectedModel,
         inputMode: inputMode,
         speakerEnabled: speakerEnabled,
@@ -223,7 +224,7 @@ export default function InterviewDetails({ onStartInterview }) {
       });
 
     } catch (err) {
-      setErrorMsg("We couldn't reach the AI interviewer. Please check your API key or connection.");
+      setErrorMsg(`[Session Start Error]: ${err?.message || 'Connection error'}`);
     } finally {
       setLoading(false);
     }
