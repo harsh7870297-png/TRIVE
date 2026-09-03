@@ -631,18 +631,18 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     onBackToSetup();
   };
 
-  const handleStopInterview = async () => {
+  const handleStopInterview = () => {
     setIsTimerRunning(false);
 
     try {
-      await fetch(`${API_BASE_URL}/api/interview/stop`, {
+      fetch(`${API_BASE_URL}/api/interview/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           interviewId: config.interviewId,
           exitTimeSeconds: elapsedSeconds
         })
-      });
+      }).catch(() => {});
     } catch (err) {}
 
     handleFinishInterview(conversationHistory);
