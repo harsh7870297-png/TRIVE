@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config/api';
+import { logAnalyticsEvent, saveAnalyticsEventToFirestore } from '../config/firebase';
 
 export default function InterviewDetails({ onStartInterview }) {
   const [username, setUsername] = useState('');
@@ -28,6 +29,10 @@ export default function InterviewDetails({ onStartInterview }) {
         })
       });
     } catch (e) {}
+
+    // Firebase Firestore + Google Analytics 4
+    logAnalyticsEvent('page_view', { page_title: 'InterviewDetails' });
+    saveAnalyticsEventToFirestore('SITE_VISIT', 'anonymous');
   }, []);
 
   const [availableModels] = useState([

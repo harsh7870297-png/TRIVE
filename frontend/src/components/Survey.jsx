@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { API_BASE_URL } from '../config/api';
+import { logAnalyticsEvent, saveSurveyToFirestore } from '../config/firebase';
 
 export default function Survey({ username, onFinish }) {
   const [wouldUseAgain, setWouldUseAgain] = useState(true);
@@ -14,29 +15,28 @@ export default function Survey({ username, onFinish }) {
     setSubmitting(true);
     setErrorMsg('');
 
+    const surveyPayload = {
+      username: username || 'anonymous',
+      wouldUseAgain,
+      willingToPay,
+      priceRange: willingToPay ? priceRange : null,
+      wouldRefer
+    };
+
+    // Save directly to Firebase Firestore & GA4
+    await saveSurveyToFirestore(surveyPayload);
+    logAnalyticsEvent('survey_submitted', surveyPayload);
+
     try {
-      const res = await fetch(`${API_BASE_URL}/api/survey`, {
+      await fetch(`${API_BASE_URL}/api/survey`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          username: username || 'anonymous',
-          wouldUseAgain,
-          willingToPay,
-          priceRange: willingToPay ? priceRange : null,
-          wouldRefer
-        })
+        body: JSON.stringify(surveyPayload)
       });
+    } catch (err) {}
 
-      if (res.ok) {
-        onFinish();
-      } else {
-        setErrorMsg('Failed to record survey response.');
-      }
-    } catch (err) {
-      setErrorMsg('Network error. Failed to reach server.');
-    } finally {
-      setSubmitting(false);
-    }
+    setSubmitting(false);
+    onFinish();
   };
 
   return (
