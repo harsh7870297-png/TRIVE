@@ -82,6 +82,8 @@ export async function verifyKeyDirectly(apiKey, selectedModel = 'gemini-2.0-flas
   const cleanKey = (apiKey || '').trim();
   if (!cleanKey) return { valid: false, message: 'Please enter your Gemini API key.' };
 
+  let lastApiErrorMessage = '';
+
   const modelsToTry = [selectedModel, 'gemini-2.0-flash', 'gemini-1.5-flash'].filter(Boolean);
 
   for (const model of modelsToTry) {
@@ -101,11 +103,14 @@ export async function verifyKeyDirectly(apiKey, selectedModel = 'gemini-2.0-flas
 
       const data = await res.json().catch(() => ({}));
       if (data?.error?.message) {
-        if (data.error.message.includes('API key not valid') || data.error.message.includes('API_KEY_INVALID')) {
-          return { valid: false, message: 'Invalid Gemini API key. Please check your key at aistudio.google.com' };
+        lastApiErrorMessage = data.error.message;
+        if (lastApiErrorMessage.includes('API key not valid') || lastApiErrorMessage.includes('API_KEY_INVALID') || lastApiErrorMessage.toLowerCase().includes('invalid')) {
+          return { valid: false, message: `Invalid Gemini API Key: ${lastApiErrorMessage}` };
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      if (!lastApiErrorMessage) lastApiErrorMessage = e.message;
+    }
   }
 
   // Backup attempt: models GET endpoint
@@ -116,11 +121,16 @@ export async function verifyKeyDirectly(apiKey, selectedModel = 'gemini-2.0-flas
     }
     const data = await res.json().catch(() => ({}));
     if (data?.error?.message) {
-      return { valid: false, message: data.error.message };
+      lastApiErrorMessage = data.error.message;
     }
   } catch (e) {}
 
-  return { valid: false, message: 'Failed to verify Gemini API key. Please check your network connection.' };
+  return { 
+    valid: false, 
+    message: lastApiErrorMessage 
+      ? `Gemini API Error: ${lastApiErrorMessage}` 
+      : 'Failed to verify Gemini API key. Please check your API key or network connection.' 
+  };
 }
 
 export async function startInterviewDirectly({ apiKey, model, company, jobRole, jobDescription, salary, difficulty }) {

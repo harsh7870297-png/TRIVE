@@ -104,7 +104,7 @@ export default function InterviewDetails({ onStartInterview }) {
       if (verified) setErrorMsg('');
     } catch (err) {
       setIsKeyVerified(false);
-      setErrorMsg('Error verifying Gemini API key.');
+      setErrorMsg(err?.message ? `Verification error: ${err.message}` : 'Error verifying Gemini API key.');
     } finally {
       setKeyVerifying(false);
     }
