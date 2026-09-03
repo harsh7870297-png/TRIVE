@@ -14,6 +14,13 @@ export default function InterviewDetails({ onStartInterview }) {
   const [apiKey, setApiKey] = useState('');
   const [selectedModel, setSelectedModel] = useState('gemini-2.0-flash');
 
+  const [availableModels] = useState([
+    { id: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash (Recommended)' },
+    { id: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
+    { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite' },
+    { id: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' }
+  ]);
+
   // Pre-configured interview settings (Speaker OFF by default)
   const [inputMode, setInputMode] = useState('keyboard'); // 'keyboard' | 'mic'
   const [speakerEnabled, setSpeakerEnabled] = useState(false); // Default OFF as requested
