@@ -48,7 +48,11 @@ namespace TriveApi.Controllers
             {
                 var siteVisits = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(_db.AnalyticsEvents, e => e.EventType == "SITE_VISIT");
                 var startedCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(_db.UserInterviews);
-                var finishedCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(_db.UserInterviews, u => u.InterviewStatus.ToLower() == "completed");
+                var finishedCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(_db.AnalyticsEvents, e => e.EventType == "INTERVIEW_FINISHED");
+                if (finishedCount == 0)
+                {
+                    finishedCount = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.CountAsync(_db.UserInterviews, u => u.InterviewStatus.ToLower() == "completed");
+                }
 
                 var abandonedTimes = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.ToListAsync(
                     System.Linq.Queryable.Select(

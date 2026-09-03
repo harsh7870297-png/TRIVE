@@ -87,6 +87,7 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
   const shouldListenRef = useRef(false);
   const lastViolationTimeRef = useRef(0);
   const accumulatedTranscriptRef = useRef('');
+  const hasFinishedRef = useRef(false);
 
   // Auto-focus input on mount and state changes
   useEffect(() => {
@@ -502,7 +503,6 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
         setElapsedSeconds((prev) => {
           if (prev >= 300) {
             clearInterval(interval);
-            handleFinishInterview();
             return 300;
           }
           return prev + 1;
@@ -511,6 +511,12 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
     }
     return () => clearInterval(interval);
   }, [isTimerRunning, mode]);
+
+  useEffect(() => {
+    if (elapsedSeconds >= 300 && mode === 'interviewing') {
+      handleFinishInterview();
+    }
+  }, [elapsedSeconds, mode]);
 
   const toggleBox = (interviewerKey) => {
     setOpenBoxKey((prev) => (prev === interviewerKey ? null : interviewerKey));
@@ -643,12 +649,15 @@ export default function InterviewRoom({ config, onNavigateToSurvey, onBackToSetu
   };
 
   const handleFinishInterview = async (historyToUse = conversationHistory) => {
+    if (hasFinishedRef.current) return;
+    hasFinishedRef.current = true;
+
     setIsTimerRunning(false);
     setMode('evaluating');
     if (window.speechSynthesis) window.speechSynthesis.cancel();
 
     try {
-      recordStatEvent('INTERVIEW_FINISHED', { username: config.username, company: config.company });
+      await recordStatEvent('INTERVIEW_FINISHED', { username: config.username, company: config.company });
     } catch (e) {}
 
     let evals = null;
